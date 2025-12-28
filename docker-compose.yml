@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  transfersim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: transfersim
+    ports:
+      - "3010:3010"
+    environment:
+      - DATABASE_URL=postgresql://transfersim:transfersim_password@db:5432/transfersim
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PORT=3010
+      - NODE_ENV=development
+      - ADMIN_API_KEY=dev-admin-key
+      - BSIM_DEFAULT_URL=http://host.docker.internal:3001
+      - JWT_PUBLIC_KEY_URL=http://host.docker.internal:3002/.well-known/jwks.json
+      - JWT_ISSUER=http://host.docker.internal:3002
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - transfersim-network
+      - bsim-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: transfersim-db
+    environment:
+      - POSTGRES_USER=transfersim
+      - POSTGRES_PASSWORD=transfersim_password
+      - POSTGRES_DB=transfersim
+    volumes:
+      - transfersim-db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Use different port to avoid conflict with BSIM's postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transfersim -d transfersim"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - transfersim-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: transfersim-redis
+    ports:
+      - "6380:6379"  # Use different port to avoid conflict
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - transfersim-redis-data:/data
+    networks:
+      - transfersim-network
+    restart: unless-stopped
+
+volumes:
+  transfersim-db-data:
+  transfersim-redis-data:
+
+networks:
+  transfersim-network:
+    driver: bridge
+  bsim-network:
+    external: true
+    name: bsim_bsim-network  # Connect to BSIM's network if it exists

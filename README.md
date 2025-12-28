@@ -2,6 +2,11 @@
 
 A peer-to-peer (P2P) transfer network enabling real-time money transfers between users across multiple BSIM (Bank Simulator) instances. Think Zelle or Interac e-Transfer for the BSIM ecosystem.
 
+## Status
+
+**Production:** Deployed and operational on AWS ECS
+**Version:** 0.1.0
+
 ## Overview
 
 TransferSim acts as the central coordinator for P2P transfers, managing:

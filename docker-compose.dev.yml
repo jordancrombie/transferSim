@@ -1,0 +1,23 @@
+version: '3.8'
+
+# Development overrides - use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  transfersim:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/app/src:ro
+      - ./prisma:/app/prisma:ro
+    environment:
+      - NODE_ENV=development
+      - ADMIN_API_KEY=dev-admin-key
+
+  db:
+    ports:
+      - "5433:5432"
+
+  redis:
+    ports:
+      - "6380:6379"

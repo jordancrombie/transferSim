@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Alias types for P2P transfers
+enum AliasType {
+  EMAIL
+  PHONE
+  USERNAME
+  RANDOM_KEY
+}
+
+// Transfer status lifecycle
+enum TransferStatus {
+  PENDING           // Created, awaiting processing
+  RESOLVING         // Looking up recipient
+  RECIPIENT_NOT_FOUND
+  DEBITING          // Withdrawing from sender
+  DEBIT_FAILED
+  CREDITING         // Depositing to recipient
+  CREDIT_FAILED
+  COMPLETED         // Successfully transferred
+  CANCELLED         // Cancelled by sender
+  EXPIRED           // Timed out
+  REVERSED          // Reversed after completion
+}
+
+// User aliases for receiving transfers
+model Alias {
+  id              String    @id @default(uuid())
+  type            AliasType
+  value           String    // The actual alias value
+  normalizedValue String    // Lowercase/E.164 normalized
+
+  // Owner info (from BSIM)
+  userId          String    // User's ID at their BSIM
+  bsimId          String    // Which BSIM this user belongs to
+  accountId       String?   // Preferred account for receiving
+
+  // Status
+  isVerified      Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  isPrimary       Boolean   @default(false)
+
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  verifiedAt      DateTime?
+
+  @@unique([type, normalizedValue])
+  @@index([userId, bsimId])
+  @@index([normalizedValue])
+  @@map("aliases")
+}
+
+// P2P transfers between users
+model Transfer {
+  id                  String         @id @default(uuid())
+  transferId          String         @unique // External transfer ID (p2p_xxx)
+
+  // Sender info
+  senderUserId        String
+  senderBsimId        String
+  senderAccountId     String
+  senderAlias         String?        // Alias used to identify sender
+
+  // Recipient info
+  recipientAlias      String         // Alias used to find recipient
+  recipientAliasType  AliasType
+  recipientUserId     String?        // Resolved after lookup
+  recipientBsimId     String?        // Resolved after lookup
+  recipientAccountId  String?        // Resolved after lookup
+
+  // Transfer details
+  amount              Decimal        @db.Decimal(15, 2)
+  currency            String         @default("CAD")
+  description         String?
+
+  // Status tracking
+  status              TransferStatus @default(PENDING)
+  statusMessage       String?
+
+  // BSIM transaction references
+  debitTransactionId  String?        // Transaction ID at sender's BSIM
+  creditTransactionId String?        // Transaction ID at recipient's BSIM
+
+  // Orchestrator info
+  orchestratorId      String?
+
+  // Timestamps
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  completedAt         DateTime?
+  expiresAt           DateTime?      // For pending transfers
+
+  @@index([senderUserId, senderBsimId])
+  @@index([recipientUserId, recipientBsimId])
+  @@index([status])
+  @@index([transferId])
+  @@map("transfers")
+}
+
+// Registered orchestrators (mobile apps, web apps)
+model Orchestrator {
+  id                  String    @id @default(uuid())
+  orchestratorId      String    @unique // External ID (orch_xxx)
+  name                String
+  type                String    // MOBILE_APP, WEB_APP, TERMINAL
+
+  // Authentication
+  apiKey              String    @unique
+  apiKeyHash          String    // Hashed API key for validation
+  webhookUrl          String?
+  webhookSecret       String?
+
+  // Permissions
+  canEnrollUsers      Boolean   @default(true)
+  canInitiateTransfers Boolean  @default(true)
+  canViewTransfers    Boolean   @default(true)
+  dailyTransferLimit  Decimal?  @db.Decimal(15, 2)
+  perTransferLimit    Decimal?  @db.Decimal(15, 2)
+
+  // Status
+  isActive            Boolean   @default(true)
+
+  // Timestamps
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("orchestrators")
+}
+
+// Connected BSIM instances
+model BsimConnection {
+  id                        String   @id @default(uuid())
+  bsimId                    String   @unique // Identifier for this BSIM
+  name                      String   // "Bank A", "Bank B"
+
+  // Connection details
+  baseUrl                   String   // https://bsim-a.example.com
+  apiKey                    String   // API key for P2P operations
+
+  // Open Banking endpoints
+  authServerUrl             String   // For token validation
+  openBankingUrl            String   // For payment initiation
+
+  // Capabilities
+  supportsPaymentInitiation Boolean  @default(false)
+  supportsInstantTransfer   Boolean  @default(true)
+
+  // Status
+  isActive                  Boolean  @default(true)
+
+  // Timestamps
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@map("bsim_connections")
+}
+
+// User enrollments (users enrolled in P2P via orchestrators)
+model UserEnrollment {
+  id               String    @id @default(uuid())
+
+  // User identity (from BSIM)
+  userId           String
+  bsimId           String
+
+  // Enrollment details
+  orchestratorId   String
+  enrolledAt       DateTime  @default(now())
+
+  // Consent
+  consentScopes    String[]  // What the user consented to
+  consentExpiresAt DateTime?
+
+  // Status
+  isActive         Boolean   @default(true)
+
+  @@unique([userId, bsimId, orchestratorId])
+  @@map("user_enrollments")
+}
+
+// QR/NFC tokens for device-to-device transfers
+model Token {
+  id            String    @id @default(uuid())
+  tokenId       String    @unique // External token ID (tok_xxx)
+  type          String    // RECEIVE, SEND
+
+  // Token payload
+  aliasId       String?   // Associated alias
+  userId        String    // Token creator
+  bsimId        String
+  amount        Decimal?  @db.Decimal(15, 2) // Optional pre-set amount
+  currency      String    @default("CAD")
+  description   String?
+
+  // Status
+  isUsed        Boolean   @default(false)
+  usedAt        DateTime?
+  usedByUserId  String?
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime  // Default 5 minutes
+
+  @@index([tokenId])
+  @@index([expiresAt])
+  @@map("tokens")
+}
