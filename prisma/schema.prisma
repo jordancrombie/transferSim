@@ -15,6 +15,13 @@ enum AliasType {
   RANDOM_KEY
 }
 
+// Recipient type for transfers (Individual P2P vs Micro Merchant)
+enum RecipientType {
+  INDIVIDUAL        // Standard P2P transfer (free)
+  MICRO_MERCHANT    // Micro Merchant payment (fee-based)
+  // MERCHANT       // Reserved for future NSIM integration
+}
+
 // Transfer status lifecycle
 enum TransferStatus {
   PENDING           // Created, awaiting processing
@@ -80,6 +87,14 @@ model Transfer {
   amount              Decimal        @db.Decimal(15, 2)
   currency            String         @default("CAD")
   description         String?
+
+  // Recipient type (Individual P2P or Micro Merchant)
+  recipientType       RecipientType  @default(INDIVIDUAL)
+  microMerchantId     String?        // Reference to MicroMerchant if recipientType is MICRO_MERCHANT
+
+  // Fee details (for Micro Merchant payments)
+  feeAmount           Decimal?       @db.Decimal(15, 2)
+  feeCollected        Boolean        @default(false)
 
   // Status tracking
   status              TransferStatus @default(PENDING)
@@ -200,6 +215,10 @@ model Token {
   currency      String    @default("CAD")
   description   String?
 
+  // Recipient type for visual differentiation
+  recipientType     RecipientType @default(INDIVIDUAL)
+  microMerchantId   String?       // Reference to MicroMerchant if applicable
+
   // Status
   isUsed        Boolean   @default(false)
   usedAt        DateTime?
@@ -212,4 +231,54 @@ model Token {
   @@index([tokenId])
   @@index([expiresAt])
   @@map("tokens")
+}
+
+// Micro Merchant categories
+enum MerchantCategory {
+  RETAIL
+  FOOD_AND_BEVERAGE
+  SERVICES
+  CRAFTS_AND_HANDMADE
+  DIGITAL_GOODS
+  OTHER
+}
+
+// Micro Merchant profiles - users who accept payments with business tracking
+model MicroMerchant {
+  id                  String           @id @default(uuid())
+  merchantId          String           @unique // External ID (mm_xxx)
+
+  // Owner info (linked to P2P user)
+  userId              String
+  bsimId              String
+
+  // Business details
+  merchantName        String           // Display name (e.g., "Sarah's Bakery")
+  merchantCategory    MerchantCategory @default(OTHER)
+  description         String?          // Brief description of business
+
+  // Receiving preferences
+  receivingAliasId    String?          // Preferred alias for receiving
+  receivingAccountId  String?          // Preferred account for deposits
+
+  // Fee configuration (future: per-BSIM admin pricing)
+  feePercentage       Decimal?         @db.Decimal(5, 4) // e.g., 0.0100 = 1%
+  feeFlat             Decimal?         @db.Decimal(15, 2) // Flat fee amount
+
+  // Stats (denormalized for dashboard performance)
+  totalReceived       Decimal          @default(0) @db.Decimal(15, 2)
+  totalTransactions   Int              @default(0)
+  totalFees           Decimal          @default(0) @db.Decimal(15, 2)
+
+  // Status
+  isActive            Boolean          @default(true)
+
+  // Timestamps
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([userId, bsimId])
+  @@index([merchantId])
+  @@index([userId, bsimId])
+  @@map("micro_merchants")
 }

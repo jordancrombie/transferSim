@@ -14,6 +14,7 @@ const createReceiveTokenSchema = z.object({
   amount: z.number().positive().optional(),
   currency: z.string().default('CAD'),
   description: z.string().max(200).optional(),
+  asMerchant: z.boolean().optional().default(false), // Create token as Micro Merchant
 });
 
 const createSendTokenSchema = z.object({
@@ -50,6 +51,27 @@ tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) =>
       }
     }
 
+    // If creating as merchant, verify user is a registered Micro Merchant
+    let merchant = null;
+    if (body.asMerchant) {
+      merchant = await prisma.microMerchant.findUnique({
+        where: {
+          userId_bsimId: {
+            userId: user.userId,
+            bsimId: user.bsimId,
+          },
+        },
+      });
+
+      if (!merchant || !merchant.isActive) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: 'User is not registered as an active Micro Merchant',
+        });
+        return;
+      }
+    }
+
     const expiresAt = new Date(Date.now() + config.tokenExpirySeconds * 1000);
 
     const token = await prisma.token.create({
@@ -62,23 +84,42 @@ tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) =>
         amount: body.amount ? new Decimal(body.amount) : null,
         currency: body.currency,
         description: body.description,
+        recipientType: body.asMerchant ? 'MICRO_MERCHANT' : 'INDIVIDUAL',
+        microMerchantId: merchant?.merchantId,
         expiresAt,
       },
     });
 
+    // Build QR payload with recipient type info
+    const qrPayload: Record<string, unknown> = {
+      v: 1,                              // Version
+      t: 'tsim',                         // Type: TransferSim
+      id: token.tokenId,                 // Token ID
+      rt: token.recipientType,           // Recipient type
+    };
+    if (token.amount) qrPayload.a = token.amount.toString();
+    if (token.currency !== 'CAD') qrPayload.c = token.currency;
+    if (merchant) {
+      qrPayload.mn = merchant.merchantName;
+      qrPayload.mc = merchant.merchantCategory;
+    }
+
     res.status(201).json({
       tokenId: token.tokenId,
       type: token.type,
+      recipientType: token.recipientType,
       amount: token.amount?.toString(),
       currency: token.currency,
       description: token.description,
       expiresAt: token.expiresAt,
-      // QR payload that can be encoded
-      qrPayload: JSON.stringify({
-        t: token.tokenId,
-        a: token.amount?.toString(),
-        c: token.currency,
+      ...(merchant && {
+        merchant: {
+          merchantId: merchant.merchantId,
+          merchantName: merchant.merchantName,
+          merchantCategory: merchant.merchantCategory,
+        },
       }),
+      qrPayload: JSON.stringify(qrPayload),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -201,13 +242,30 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       }
     }
 
+    // Get merchant info if this is a Micro Merchant token
+    let merchantInfo = null;
+    if (token.recipientType === 'MICRO_MERCHANT' && token.microMerchantId) {
+      const merchant = await prisma.microMerchant.findUnique({
+        where: { merchantId: token.microMerchantId },
+      });
+      if (merchant && merchant.isActive) {
+        merchantInfo = {
+          merchantId: merchant.merchantId,
+          merchantName: merchant.merchantName,
+          merchantCategory: merchant.merchantCategory,
+        };
+      }
+    }
+
     res.json({
       tokenId: token.tokenId,
       type: token.type,
+      recipientType: token.recipientType,
       amount: token.amount?.toString(),
       currency: token.currency,
       description: token.description,
       alias: aliasInfo,
+      merchant: merchantInfo,
       expiresAt: token.expiresAt,
     });
   } catch (error) {
