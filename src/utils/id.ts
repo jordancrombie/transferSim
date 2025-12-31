@@ -14,6 +14,10 @@ export function generateTokenId(): string {
   return `tok_${uuidv4().replace(/-/g, '').substring(0, 24)}`;
 }
 
+export function generateMerchantId(): string {
+  return `mm_${uuidv4().replace(/-/g, '').substring(0, 24)}`;
+}
+
 // Generate random key alias (8 alphanumeric characters)
 export function generateRandomKey(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing chars (0, O, 1, I)
