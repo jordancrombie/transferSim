@@ -150,8 +150,8 @@ For users enrolled with multiple banks, you can explicitly specify which bank to
 {
   "recipientAlias": "@johndoe",
   "amount": 50.00,
-  "fromAccountId": "acct_123456",
-  "senderBsimId": "bsim-dev",  // Optional: specify which bank to debit from
+  "senderAccountId": "acct_123456",
+  "senderBsimId": "bsim-dev",
   "description": "Payment"
 }
 ```
@@ -161,7 +161,8 @@ For users enrolled with multiple banks, you can explicitly specify which bank to
 - `recipientAliasType` (enum, optional): EMAIL | PHONE | USERNAME | RANDOM_KEY
 - `amount` (number, required): Transfer amount (positive)
 - `currency` (string, optional): Currency code (default: CAD)
-- `fromAccountId` (string, required): Sender's account ID to debit
+- `senderAccountId` (string, required): Sender's account ID to debit
+  - Also accepts: `fromAccountId`, `sourceAccountId` (for backward compatibility)
 - `senderBsimId` (string, optional): BSIM ID for multi-bank routing
 - `description` (string, optional): Transfer description (max 200 chars)
 

@@ -134,6 +134,129 @@ describe('POST /api/v1/transfers - Multi-Bank Support', () => {
   });
 });
 
+describe('POST /api/v1/transfers - Account ID Field Name Compatibility', () => {
+  let orchestratorApiKey: string;
+  const testUserId = 'user_field_compat';
+  const recipientUserId = 'user_multibank_recipient';
+
+  beforeAll(async () => {
+    const orchestrator = await prisma.orchestrator.findFirst({
+      where: { orchestratorId: 'test_orch_multibank' },
+    });
+    if (orchestrator) {
+      orchestratorApiKey = orchestrator.apiKey;
+    }
+  });
+
+  afterAll(async () => {
+    await prisma.transfer.deleteMany({
+      where: { senderUserId: testUserId },
+    });
+  });
+
+  it('should accept senderAccountId (canonical field name)', async () => {
+    const response = await request(app)
+      .post('/api/v1/transfers')
+      .set('X-API-Key', orchestratorApiKey)
+      .set('Authorization', `Bearer ${testUserId}:bsim-dev-001`)
+      .send({
+        recipientAlias: '@testrecipient',
+        amount: 15.0,
+        senderAccountId: 'acct_canonical_test', // Canonical field name
+        description: 'senderAccountId test',
+      });
+
+    expect(response.status).toBe(201);
+
+    const transfer = await prisma.transfer.findFirst({
+      where: { transferId: response.body.transferId },
+    });
+
+    expect(transfer?.senderAccountId).toBe('acct_canonical_test');
+  });
+
+  it('should accept fromAccountId (legacy field name)', async () => {
+    const response = await request(app)
+      .post('/api/v1/transfers')
+      .set('X-API-Key', orchestratorApiKey)
+      .set('Authorization', `Bearer ${testUserId}:bsim-dev-001`)
+      .send({
+        recipientAlias: '@testrecipient',
+        amount: 15.0,
+        fromAccountId: 'acct_legacy_test', // Legacy field name
+        description: 'fromAccountId test',
+      });
+
+    expect(response.status).toBe(201);
+
+    const transfer = await prisma.transfer.findFirst({
+      where: { transferId: response.body.transferId },
+    });
+
+    expect(transfer?.senderAccountId).toBe('acct_legacy_test');
+  });
+
+  it('should accept sourceAccountId (mwsim field name)', async () => {
+    const response = await request(app)
+      .post('/api/v1/transfers')
+      .set('X-API-Key', orchestratorApiKey)
+      .set('Authorization', `Bearer ${testUserId}:bsim-dev-001`)
+      .send({
+        recipientAlias: '@testrecipient',
+        amount: 15.0,
+        sourceAccountId: 'acct_mwsim_test', // mwsim field name
+        description: 'sourceAccountId test',
+      });
+
+    expect(response.status).toBe(201);
+
+    const transfer = await prisma.transfer.findFirst({
+      where: { transferId: response.body.transferId },
+    });
+
+    expect(transfer?.senderAccountId).toBe('acct_mwsim_test');
+  });
+
+  it('should prioritize senderAccountId over other field names', async () => {
+    const response = await request(app)
+      .post('/api/v1/transfers')
+      .set('X-API-Key', orchestratorApiKey)
+      .set('Authorization', `Bearer ${testUserId}:bsim-dev-001`)
+      .send({
+        recipientAlias: '@testrecipient',
+        amount: 15.0,
+        senderAccountId: 'acct_priority_canonical', // Should take priority
+        fromAccountId: 'acct_priority_legacy',
+        sourceAccountId: 'acct_priority_mwsim',
+        description: 'Priority test',
+      });
+
+    expect(response.status).toBe(201);
+
+    const transfer = await prisma.transfer.findFirst({
+      where: { transferId: response.body.transferId },
+    });
+
+    expect(transfer?.senderAccountId).toBe('acct_priority_canonical');
+  });
+
+  it('should reject request with no account ID field', async () => {
+    const response = await request(app)
+      .post('/api/v1/transfers')
+      .set('X-API-Key', orchestratorApiKey)
+      .set('Authorization', `Bearer ${testUserId}:bsim-dev-001`)
+      .send({
+        recipientAlias: '@testrecipient',
+        amount: 15.0,
+        // No account ID field provided
+        description: 'Missing account ID test',
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Bad Request');
+  });
+});
+
 describe('GET /api/v1/transfers - Multi-Bank Filtering', () => {
   let orchestratorApiKey: string;
   const testUserId = 'user_multibank_list';

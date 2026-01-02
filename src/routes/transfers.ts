@@ -12,15 +12,29 @@ import { BsimClient } from '../services/bsimClient.js';
 export const transferRoutes = Router();
 
 // Validation schemas
-const createTransferSchema = z.object({
-  recipientAlias: z.string().min(1),
-  recipientAliasType: z.enum(['EMAIL', 'PHONE', 'USERNAME', 'RANDOM_KEY']).optional(),
-  amount: z.number().positive(),
-  currency: z.string().default('CAD'),
-  description: z.string().max(200).optional(),
-  fromAccountId: z.string(),
-  senderBsimId: z.string().optional(), // Multi-bank support: explicitly specify which bank to debit from
-});
+// Accept multiple field names for account ID due to naming inconsistency across docs
+// Canonical: senderAccountId (matches DB schema and original design)
+// Also accepts: fromAccountId, sourceAccountId (for backward compatibility)
+const createTransferSchema = z
+  .object({
+    recipientAlias: z.string().min(1),
+    recipientAliasType: z.enum(['EMAIL', 'PHONE', 'USERNAME', 'RANDOM_KEY']).optional(),
+    amount: z.number().positive(),
+    currency: z.string().default('CAD'),
+    description: z.string().max(200).optional(),
+    // Accept all three field names for backward compatibility
+    senderAccountId: z.string().optional(), // Canonical name (matches DB schema)
+    fromAccountId: z.string().optional(), // Legacy name from initial implementation
+    sourceAccountId: z.string().optional(), // Name from mwsim integration proposal
+    senderBsimId: z.string().optional(), // Multi-bank support: explicitly specify which bank to debit from
+  })
+  .refine(
+    (data) => data.senderAccountId || data.fromAccountId || data.sourceAccountId,
+    {
+      message: 'One of senderAccountId, fromAccountId, or sourceAccountId is required',
+      path: ['senderAccountId'],
+    }
+  );
 
 const listTransfersSchema = z.object({
   type: z.enum(['sent', 'received', 'all']).optional().default('all'),
@@ -64,6 +78,10 @@ transferRoutes.post('/', requireAuth, requirePermission('canInitiateTransfers'),
     // Normalize alias
     const normalizedAlias = normalizeAlias(aliasType, body.recipientAlias);
 
+    // Resolve sender account ID from any of the accepted field names
+    // Priority: senderAccountId (canonical) > fromAccountId > sourceAccountId
+    const senderAccountId = (body.senderAccountId || body.fromAccountId || body.sourceAccountId)!;
+
     // Determine sender BSIM ID
     // Use senderBsimId from request body if provided (multi-bank support),
     // otherwise fall back to user.bsimId from Bearer token (backward compatibility)
@@ -84,7 +102,7 @@ transferRoutes.post('/', requireAuth, requirePermission('canInitiateTransfers'),
         transferId: generateTransferId(),
         senderUserId: user.userId,
         senderBsimId: senderBsimId,
-        senderAccountId: body.fromAccountId,
+        senderAccountId: senderAccountId,
         recipientAlias: normalizedAlias,
         recipientAliasType: aliasType,
         amount: new Decimal(body.amount),
