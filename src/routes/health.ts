@@ -1,5 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Read version from package.json at startup (works in Docker and npm start)
+// Using __dirname which is available in CommonJS context after TypeScript compilation
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
+const VERSION = packageJson.version;
 
 export const healthRoutes = Router();
 
@@ -8,7 +15,7 @@ healthRoutes.get('/', async (_req: Request, res: Response) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     service: 'transfersim',
-    version: process.env.npm_package_version || '0.1.0',
+    version: VERSION,
   };
 
   try {

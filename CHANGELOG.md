@@ -60,6 +60,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mwsim mobile wallet orchestrator registered
 - Health checks passing
 
+## [0.2.0] - 2025-01-03
+
+### Added
+
+- **Multi-Bank Routing Support**
+  - New `senderBsimId` field in transfer requests for explicit bank selection
+  - Enables users enrolled with multiple banks to specify which bank to debit
+  - Falls back to Bearer token `bsimId` when not provided (backward compatible)
+  - Warning logged when `senderBsimId` differs from auth context
+
+- **Account ID Field Name Flexibility**
+  - Accept `senderAccountId` (canonical), `fromAccountId` (legacy), or `sourceAccountId` (mwsim)
+  - Priority order when multiple provided: `senderAccountId` > `fromAccountId` > `sourceAccountId`
+  - Maintains backward compatibility with existing integrations
+
+- **Micro-Merchant Support for QR/NFC Tokens**
+  - `MicroMerchant` model for small business payment tracking
+  - Merchant categories (RETAIL, FOOD_AND_BEVERAGE, SERVICES, etc.)
+  - Fee configuration per merchant (percentage and/or flat fee)
+  - Token generation with merchant context for visual differentiation
+  - Denormalized stats for dashboard performance
+
+- **Test Suite**
+  - Comprehensive tests for multi-bank routing
+  - Tests for account ID field name compatibility
+  - Tests for transfer list filtering by BSIM
+
+### Changed
+
+- Transfer request validation now uses Zod `.refine()` for account ID flexibility
+- Bearer token format documented: `<bsim_fiUserRef>:<bsimId>` (uses BSIM userId, not WSIM)
+
 ## [Unreleased]
 
 ### Planned
