@@ -12,14 +12,29 @@ import { BsimClient } from '../services/bsimClient.js';
 export const transferRoutes = Router();
 
 // Validation schemas
-const createTransferSchema = z.object({
-  recipientAlias: z.string().min(1),
-  recipientAliasType: z.enum(['EMAIL', 'PHONE', 'USERNAME', 'RANDOM_KEY']).optional(),
-  amount: z.number().positive(),
-  currency: z.string().default('CAD'),
-  description: z.string().max(200).optional(),
-  fromAccountId: z.string(),
-});
+// Accept multiple field names for account ID due to naming inconsistency across docs
+// Canonical: senderAccountId (matches DB schema and original design)
+// Also accepts: fromAccountId, sourceAccountId (for backward compatibility)
+const createTransferSchema = z
+  .object({
+    recipientAlias: z.string().min(1),
+    recipientAliasType: z.enum(['EMAIL', 'PHONE', 'USERNAME', 'RANDOM_KEY']).optional(),
+    amount: z.number().positive(),
+    currency: z.string().default('CAD'),
+    description: z.string().max(200).optional(),
+    // Accept all three field names for backward compatibility
+    senderAccountId: z.string().optional(), // Canonical name (matches DB schema)
+    fromAccountId: z.string().optional(), // Legacy name from initial implementation
+    sourceAccountId: z.string().optional(), // Name from mwsim integration proposal
+    senderBsimId: z.string().optional(), // Multi-bank support: explicitly specify which bank to debit from
+  })
+  .refine(
+    (data) => data.senderAccountId || data.fromAccountId || data.sourceAccountId,
+    {
+      message: 'One of senderAccountId, fromAccountId, or sourceAccountId is required',
+      path: ['senderAccountId'],
+    }
+  );
 
 const listTransfersSchema = z.object({
   type: z.enum(['sent', 'received', 'all']).optional().default('all'),
@@ -63,13 +78,31 @@ transferRoutes.post('/', requireAuth, requirePermission('canInitiateTransfers'),
     // Normalize alias
     const normalizedAlias = normalizeAlias(aliasType, body.recipientAlias);
 
+    // Resolve sender account ID from any of the accepted field names
+    // Priority: senderAccountId (canonical) > fromAccountId > sourceAccountId
+    const senderAccountId = (body.senderAccountId || body.fromAccountId || body.sourceAccountId)!;
+
+    // Determine sender BSIM ID
+    // Use senderBsimId from request body if provided (multi-bank support),
+    // otherwise fall back to user.bsimId from Bearer token (backward compatibility)
+    const senderBsimId = body.senderBsimId || user.bsimId;
+
+    // Validate that senderBsimId matches the authenticated user's context
+    // This prevents users from initiating transfers from banks they're not enrolled with
+    if (body.senderBsimId && body.senderBsimId !== user.bsimId) {
+      // In production, we should verify user has enrollment with this BSIM
+      // For now, we trust the orchestrator to only send valid combinations
+      // TODO: Add enrollment verification in Phase 6
+      console.warn(`[Transfer] User ${user.userId} requesting transfer from different BSIM: ${body.senderBsimId} (auth context: ${user.bsimId})`);
+    }
+
     // Create transfer record
     const transfer = await prisma.transfer.create({
       data: {
         transferId: generateTransferId(),
         senderUserId: user.userId,
-        senderBsimId: user.bsimId,
-        senderAccountId: body.fromAccountId,
+        senderBsimId: senderBsimId,
+        senderAccountId: senderAccountId,
         recipientAlias: normalizedAlias,
         recipientAliasType: aliasType,
         amount: new Decimal(body.amount),

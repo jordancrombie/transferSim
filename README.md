@@ -142,6 +142,35 @@ GET    /api/v1/transfers/:transferId      # Get transfer status
 POST   /api/v1/transfers/:transferId/cancel # Cancel transfer
 ```
 
+#### POST /api/v1/transfers - Multi-Bank Support
+
+For users enrolled with multiple banks, you can explicitly specify which bank to debit from using the `senderBsimId` field:
+
+```json
+{
+  "recipientAlias": "@johndoe",
+  "amount": 50.00,
+  "senderAccountId": "acct_123456",
+  "senderBsimId": "bsim-dev",
+  "description": "Payment"
+}
+```
+
+**Request Fields:**
+- `recipientAlias` (string, required): Alias to send money to
+- `recipientAliasType` (enum, optional): EMAIL | PHONE | USERNAME | RANDOM_KEY
+- `amount` (number, required): Transfer amount (positive)
+- `currency` (string, optional): Currency code (default: CAD)
+- `senderAccountId` (string, required): Sender's account ID to debit
+  - Also accepts: `fromAccountId`, `sourceAccountId` (for backward compatibility)
+- `senderBsimId` (string, optional): BSIM ID for multi-bank routing
+- `description` (string, optional): Transfer description (max 200 chars)
+
+**Multi-Bank Routing:**
+- If `senderBsimId` is provided, it will be used to route the debit to that specific bank
+- If omitted, falls back to the BSIM ID from the Bearer token (backward compatible)
+- Required for users who have accounts at multiple banks
+
 ### Tokens (QR/NFC)
 ```
 POST   /api/v1/tokens/receive             # Generate receive token
