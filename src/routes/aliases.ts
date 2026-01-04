@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { normalizeAlias, validateAliasFormat } from '../utils/normalize.js';
 import { generateRandomKey } from '../utils/id.js';
 import { AliasType } from '@prisma/client';
+import { BsimClient } from '../services/bsimClient.js';
 
 export const aliasRoutes = Router();
 
@@ -206,9 +207,20 @@ aliasRoutes.get('/lookup', requireAuth, async (req: Request, res: Response) => {
       where: { bsimId: alias.bsimId },
     });
 
+    // Get display name from BSIM (masked for privacy)
+    let displayName: string | undefined;
+    const bsimClient = await BsimClient.forBsim(alias.bsimId);
+    if (bsimClient) {
+      const verifyResult = await bsimClient.verifyUser({ userId: alias.userId });
+      if (verifyResult.exists && verifyResult.displayName) {
+        displayName = verifyResult.displayName;
+      }
+    }
+
     res.json({
       found: true,
       aliasType: alias.type,
+      displayName: displayName || 'Unknown',
       bankName: bsimConnection?.name || 'Unknown Bank',
       // Don't expose userId, accountId, or full details
     });

@@ -36,8 +36,10 @@ const createTransferSchema = z
     }
   );
 
+// Accept both 'type' and 'direction' for filtering (mwsim uses 'direction')
 const listTransfersSchema = z.object({
-  type: z.enum(['sent', 'received', 'all']).optional().default('all'),
+  type: z.enum(['sent', 'received', 'all']).optional(),
+  direction: z.enum(['sent', 'received', 'all']).optional(), // Alias for 'type' (mwsim compatibility)
   status: z.string().optional(),
   limit: z.coerce.number().min(1).max(100).optional().default(20),
   offset: z.coerce.number().min(0).optional().default(0),
@@ -150,15 +152,19 @@ transferRoutes.get('/', requireAuth, requirePermission('canViewTransfers'), asyn
     const query = listTransfersSchema.parse(req.query);
     const user = req.user!;
 
+    // Support both 'type' and 'direction' parameters (direction takes priority for mwsim compat)
+    const filterType = query.direction || query.type || 'all';
+
     const where: Record<string, unknown> = {};
 
-    if (query.type === 'sent') {
+    if (filterType === 'sent') {
       where.senderUserId = user.userId;
       where.senderBsimId = user.bsimId;
-    } else if (query.type === 'received') {
+    } else if (filterType === 'received') {
       where.recipientUserId = user.userId;
       where.recipientBsimId = user.bsimId;
     } else {
+      // 'all' - show both sent and received
       where.OR = [
         { senderUserId: user.userId, senderBsimId: user.bsimId },
         { recipientUserId: user.userId, recipientBsimId: user.bsimId },
@@ -179,19 +185,65 @@ transferRoutes.get('/', requireAuth, requirePermission('canViewTransfers'), asyn
       prisma.transfer.count({ where }),
     ]);
 
+    // Enrich transfers with sender info for received transfers
+    const enrichedTransfers = await Promise.all(
+      transfers.map(async (t) => {
+        const direction = t.senderUserId === user.userId && t.senderBsimId === user.bsimId ? 'sent' : 'received';
+
+        const baseTransfer = {
+          transferId: t.transferId,
+          status: t.status,
+          amount: t.amount.toString(),
+          currency: t.currency,
+          description: t.description,
+          recipientAlias: t.recipientAlias,
+          recipientAliasType: t.recipientAliasType,
+          direction,
+          createdAt: t.createdAt,
+          completedAt: t.completedAt,
+        };
+
+        // For received transfers, include sender info
+        if (direction === 'received') {
+          // Get sender's primary alias
+          const senderAlias = await prisma.alias.findFirst({
+            where: {
+              userId: t.senderUserId,
+              bsimId: t.senderBsimId,
+              isActive: true,
+              isPrimary: true,
+            },
+          });
+
+          // Get sender's bank name
+          const senderBank = await prisma.bsimConnection.findUnique({
+            where: { bsimId: t.senderBsimId },
+          });
+
+          // Get sender's display name from BSIM
+          let senderDisplayName: string | undefined;
+          const bsimClient = await BsimClient.forBsim(t.senderBsimId);
+          if (bsimClient) {
+            const verifyResult = await bsimClient.verifyUser({ userId: t.senderUserId });
+            if (verifyResult.exists && verifyResult.displayName) {
+              senderDisplayName = verifyResult.displayName;
+            }
+          }
+
+          return {
+            ...baseTransfer,
+            senderAlias: senderAlias?.value || t.senderAlias,
+            senderDisplayName: senderDisplayName || 'Unknown',
+            senderBankName: senderBank?.name || 'Unknown Bank',
+          };
+        }
+
+        return baseTransfer;
+      })
+    );
+
     res.json({
-      transfers: transfers.map((t) => ({
-        transferId: t.transferId,
-        status: t.status,
-        amount: t.amount.toString(),
-        currency: t.currency,
-        description: t.description,
-        recipientAlias: t.recipientAlias,
-        recipientAliasType: t.recipientAliasType,
-        direction: t.senderUserId === user.userId && t.senderBsimId === user.bsimId ? 'sent' : 'received',
-        createdAt: t.createdAt,
-        completedAt: t.completedAt,
-      })),
+      transfers: enrichedTransfers,
       pagination: {
         total,
         limit: query.limit,
