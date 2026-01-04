@@ -5,6 +5,35 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-04
+
+### Added
+
+- **Push Notification Webhooks**
+  - Webhook service for sending transfer completion events to WSIM
+  - HMAC-SHA256 signature authentication (`X-Webhook-Signature` header)
+  - Exponential backoff retry (1s, 2s, 4s, 8s, 16s, max 5 retries)
+  - Fire-and-forget pattern (doesn't block transfer completion)
+  - Enhanced payload format per AD5 with `recipientBsimId` for user lookup
+
+- **Transfer Completion Notifications**
+  - Same-bank transfers trigger webhook on completion
+  - Cross-bank transfers trigger webhook on completion
+  - Payload includes sender display name, aliases, and bank names
+  - Idempotency key for deduplication
+
+- **Configuration**
+  - `WSIM_WEBHOOK_URL` - WSIM notification endpoint
+  - `WSIM_WEBHOOK_SECRET` - Shared secret for HMAC signing
+
+- **Test Coverage**
+  - 12 unit tests for webhook service (95% statement coverage)
+  - Tests for payload building, HMAC signing, retry logic, edge cases
+
+### Changed
+
+- Jest config updated to handle ESM-style `.js` imports in TypeScript
+
 ## [0.1.0] - 2024-12-28
 
 ### Added
@@ -116,7 +145,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - JWT validation for production authentication
 - Redis-based job queue for async processing
-- Webhook notifications for transfer events
 - Enhanced rate limiting
 - Transfer history pagination
 - Hybrid enrollment flow with BSIM consent screens

@@ -29,8 +29,14 @@ export const config = {
     issuer: process.env.JWT_ISSUER || '',
   },
 
-  // Webhooks
+  // Webhooks (incoming - from orchestrators)
   webhookSecret: process.env.WEBHOOK_SECRET || '',
+
+  // Webhooks (outgoing - to WSIM for push notifications)
+  webhooks: {
+    wsimNotificationUrl: process.env.WSIM_WEBHOOK_URL || '',
+    wsimNotificationSecret: process.env.WSIM_WEBHOOK_SECRET || '',
+  },
 
   // Transfer Limits
   limits: {

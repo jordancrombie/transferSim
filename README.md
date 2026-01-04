@@ -5,7 +5,7 @@ A peer-to-peer (P2P) transfer network enabling real-time money transfers between
 ## Status
 
 **Production:** Deployed and operational on AWS ECS
-**Version:** 0.1.0
+**Version:** 0.3.0
 
 ## Overview
 
@@ -196,6 +196,8 @@ DELETE /api/v1/enrollments/:enrollmentId  # Remove enrollment
 | `NODE_ENV` | Environment | development |
 | `DEFAULT_TRANSFER_LIMIT` | Max per-transfer amount | 10000 |
 | `DEFAULT_DAILY_LIMIT` | Max daily transfer total | 50000 |
+| `WSIM_WEBHOOK_URL` | WSIM notification webhook URL | - |
+| `WSIM_WEBHOOK_SECRET` | Shared secret for HMAC signing | - |
 
 ## Related Projects
 
