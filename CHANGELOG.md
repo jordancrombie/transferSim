@@ -60,6 +60,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - mwsim mobile wallet orchestrator registered
 - Health checks passing
 
+## [0.2.1] - 2025-01-04
+
+### Fixed
+
+- **Alias Lookup Missing displayName**
+  - GET `/api/v1/aliases/lookup` now returns `displayName` field
+  - Fetches display name from BSIM via verifyUser API
+
+- **Received Transfers Missing Sender Info**
+  - GET `/api/v1/transfers` now includes sender info for received transfers:
+    - `senderAlias` - Sender's primary alias
+    - `senderDisplayName` - Sender's display name from BSIM
+    - `senderBankName` - Sender's bank name
+
+- **Transfer Direction Filter Ignored**
+  - GET `/api/v1/transfers` now accepts both `type` and `direction` query parameters
+  - `direction=sent` and `direction=received` now work correctly (mwsim compatibility)
+
 ## [0.2.0] - 2025-01-03
 
 ### Added
