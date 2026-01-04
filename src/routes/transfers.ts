@@ -8,8 +8,74 @@ import { generateTransferId } from '../utils/id.js';
 import { AliasType, TransferStatus } from '@prisma/client';
 import { config } from '../config/index.js';
 import { BsimClient } from '../services/bsimClient.js';
+import { sendTransferCompletedWebhook, buildTransferCompletedPayload } from '../services/webhookService.js';
 
 export const transferRoutes = Router();
+
+// Helper to send transfer completed notification webhook
+async function sendTransferCompletedNotification(params: {
+  transferId: string;
+  senderUserId: string;
+  senderBsimId: string;
+  recipientUserId: string;
+  recipientBsimId: string;
+  recipientAlias: string;
+  recipientAliasType: AliasType;
+  amount: string;
+  currency: string;
+  description: string | null;
+  isCrossBank: boolean;
+}): Promise<void> {
+  try {
+    // Fetch sender's display name from BSIM
+    let senderDisplayName = 'Unknown';
+    const senderBsimClient = await BsimClient.forBsim(params.senderBsimId);
+    if (senderBsimClient) {
+      const verifyResult = await senderBsimClient.verifyUser({ userId: params.senderUserId });
+      if (verifyResult.exists && verifyResult.displayName) {
+        senderDisplayName = verifyResult.displayName;
+      }
+    }
+
+    // Fetch sender's primary alias
+    const senderAlias = await prisma.alias.findFirst({
+      where: {
+        userId: params.senderUserId,
+        bsimId: params.senderBsimId,
+        isActive: true,
+        isPrimary: true,
+      },
+    });
+
+    // Fetch bank names
+    const [senderBank, recipientBank] = await Promise.all([
+      prisma.bsimConnection.findUnique({ where: { bsimId: params.senderBsimId } }),
+      prisma.bsimConnection.findUnique({ where: { bsimId: params.recipientBsimId } }),
+    ]);
+
+    // Build and send webhook
+    const payload = buildTransferCompletedPayload({
+      transferId: params.transferId,
+      recipientUserId: params.recipientUserId,
+      recipientBsimId: params.recipientBsimId,
+      recipientAlias: params.recipientAlias,
+      recipientAliasType: params.recipientAliasType,
+      senderDisplayName,
+      senderAlias: senderAlias?.value || null,
+      senderBankName: senderBank?.name || 'Unknown Bank',
+      recipientBankName: recipientBank?.name || 'Unknown Bank',
+      amount: params.amount,
+      currency: params.currency,
+      description: params.description,
+      isCrossBank: params.isCrossBank,
+    });
+
+    await sendTransferCompletedWebhook(payload);
+  } catch (error) {
+    // Log error but don't fail the transfer - notification is fire-and-forget
+    console.error(`[Webhook] Error preparing notification for transfer ${params.transferId}:`, error);
+  }
+}
 
 // Validation schemas
 // Accept multiple field names for account ID due to naming inconsistency across docs
@@ -444,6 +510,8 @@ async function executeSameBankTransfer(
     senderUserId: string;
     senderBsimId: string;
     senderAccountId: string;
+    recipientAlias: string;
+    recipientAliasType: AliasType;
     amount: Decimal;
     currency: string;
     description: string | null;
@@ -533,6 +601,21 @@ async function executeSameBankTransfer(
   });
 
   console.log(`Transfer ${transfer.transferId} completed: ${transfer.amount} ${transfer.currency} from ${transfer.senderUserId} to ${recipientAlias.userId}`);
+
+  // Send push notification webhook to WSIM (fire-and-forget)
+  await sendTransferCompletedNotification({
+    transferId: transfer.transferId,
+    senderUserId: transfer.senderUserId,
+    senderBsimId: transfer.senderBsimId,
+    recipientUserId: recipientAlias.userId,
+    recipientBsimId: recipientAlias.bsimId,
+    recipientAlias: transfer.recipientAlias,
+    recipientAliasType: transfer.recipientAliasType,
+    amount: transfer.amount.toString(),
+    currency: transfer.currency,
+    description: transfer.description,
+    isCrossBank: false,
+  });
 }
 
 // Execute cross-bank transfer via BSIM P2P APIs
@@ -543,6 +626,8 @@ async function executeCrossBankTransfer(
     senderUserId: string;
     senderBsimId: string;
     senderAccountId: string;
+    recipientAlias: string;
+    recipientAliasType: AliasType;
     amount: Decimal;
     currency: string;
     description: string | null;
@@ -644,6 +729,21 @@ async function executeCrossBankTransfer(
   });
 
   console.log(`Cross-bank transfer ${transfer.transferId} completed: ${transfer.amount} ${transfer.currency} from ${transfer.senderBsimId}:${transfer.senderUserId} to ${recipientAlias.bsimId}:${recipientAlias.userId}`);
+
+  // Send push notification webhook to WSIM (fire-and-forget)
+  await sendTransferCompletedNotification({
+    transferId: transfer.transferId,
+    senderUserId: transfer.senderUserId,
+    senderBsimId: transfer.senderBsimId,
+    recipientUserId: recipientAlias.userId,
+    recipientBsimId: recipientAlias.bsimId,
+    recipientAlias: transfer.recipientAlias,
+    recipientAliasType: transfer.recipientAliasType,
+    amount: transfer.amount.toString(),
+    currency: transfer.currency,
+    description: transfer.description,
+    isCrossBank: true,
+  });
 }
 
 // Helper to infer alias type from value
