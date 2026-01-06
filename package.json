@@ -10,6 +10,8 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "test": "jest",
+    "test:integration": "jest --testPathPattern=\\.integration\\.test\\.ts$",
+    "test:all": "jest --testPathIgnorePatterns='/node_modules/'",
     "test:coverage": "jest --coverage",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
