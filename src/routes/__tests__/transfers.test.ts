@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../../app.js';
+import crypto from 'crypto';
+import { createApp } from '../../app.js';
 import { prisma } from '../../lib/prisma.js';
+
+const app = createApp();
 
 describe('POST /api/v1/transfers - Multi-Bank Support', () => {
   let orchestratorApiKey: string;
@@ -10,18 +13,18 @@ describe('POST /api/v1/transfers - Multi-Bank Support', () => {
 
   beforeAll(async () => {
     // Create test orchestrator
+    const apiKey = 'test_api_key_multibank_' + Date.now();
+    const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
     const orchestrator = await prisma.orchestrator.create({
       data: {
         orchestratorId: 'test_orch_multibank',
         name: 'Test Orchestrator',
         type: 'MOBILE_APP',
-        apiKey: 'test_api_key_multibank_' + Date.now(),
-        permissions: {
-          canInitiateTransfers: true,
-          canViewTransfers: true,
-          canManageAliases: true,
-          canEnrollUsers: true,
-        },
+        apiKey,
+        apiKeyHash,
+        canInitiateTransfers: true,
+        canViewTransfers: true,
+        canEnrollUsers: true,
       },
     });
     orchestratorApiKey = orchestrator.apiKey;

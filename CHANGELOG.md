@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed lint errors in `auth.ts`, `aliases.ts`, and test files
   - CI pipeline lint step now passes
 
+- **Test Suite**
+  - Added missing `supertest` dependency for API integration tests
+  - Fixed `transfers.test.ts` to use `createApp()` instead of non-existent `app` export
+  - Fixed Orchestrator creation to use flat permission fields (not nested object)
+  - Added required `apiKeyHash` field to test orchestrator creation
+
 ### Changed
 
 - Buildkite CI/CD pipelines added (managed outside repo)
