@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.banksim.mwsim",
+      "package_name": "com.banksim.wsim",
       "sha256_cert_fingerprints": [
-        "TODO:MWSIM_TEAM_PROVIDE_SHA256_FINGERPRINT"
+        "TODO:WSIM_TEAM_PROVIDE_SHA256_FINGERPRINT"
       ]
     }
   }
