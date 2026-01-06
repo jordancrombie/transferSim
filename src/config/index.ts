@@ -46,4 +46,11 @@ export const config = {
 
   // Token expiry (in seconds)
   tokenExpirySeconds: 300, // 5 minutes
+
+  // Universal Links for QR codes
+  // Used to generate scannable URLs that open mwsim app directly
+  universalLinkBaseUrl: process.env.UNIVERSAL_LINK_BASE_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://transfer.banksim.ca'
+      : 'https://transfersim-dev.banksim.ca'),
 };

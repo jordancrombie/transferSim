@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "ZJHD6JAC94.com.banksim.mwsim",
+        "paths": ["/pay/*"]
+      }
+    ]
+  }
+}
