@@ -5,6 +5,26 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-06
+
+### Added
+
+- **QR Code Universal Links Support**
+  - QR codes now contain Universal Link URLs (`https://transfer.banksim.ca/pay/{tokenId}`)
+  - Enables scanning with any camera app (iPhone Camera, Google Lens)
+  - Apple App Site Association (AASA) file served at `/.well-known/apple-app-site-association`
+  - Android App Links (`assetlinks.json`) served at `/.well-known/assetlinks.json`
+  - Legacy JSON format preserved in `qrPayloadLegacy` for backward compatibility
+
+- **Configuration**
+  - `UNIVERSAL_LINK_BASE_URL` - Base URL for Universal Links (defaults to production/dev based on NODE_ENV)
+
+### Changed
+
+- `/api/v1/tokens/receive` response now includes:
+  - `qrPayload`: Universal Link URL (e.g., `https://transfer.banksim.ca/pay/tok_xxx`)
+  - `qrPayloadLegacy`: JSON format for backward compatibility during transition
+
 ## [0.3.1] - 2026-01-06
 
 ### Fixed

@@ -90,18 +90,22 @@ tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) =>
       },
     });
 
-    // Build QR payload with recipient type info
-    const qrPayload: Record<string, unknown> = {
+    // Build Universal Link URL for QR code
+    // This allows any camera app to open mwsim directly via Universal Links
+    const qrPayload = `${config.universalLinkBaseUrl}/pay/${token.tokenId}`;
+
+    // Build legacy QR payload for backward compatibility with existing mwsim versions
+    const qrPayloadLegacy: Record<string, unknown> = {
       v: 1,                              // Version
       t: 'tsim',                         // Type: TransferSim
       id: token.tokenId,                 // Token ID
       rt: token.recipientType,           // Recipient type
     };
-    if (token.amount) qrPayload.a = token.amount.toString();
-    if (token.currency !== 'CAD') qrPayload.c = token.currency;
+    if (token.amount) qrPayloadLegacy.a = token.amount.toString();
+    if (token.currency !== 'CAD') qrPayloadLegacy.c = token.currency;
     if (merchant) {
-      qrPayload.mn = merchant.merchantName;
-      qrPayload.mc = merchant.merchantCategory;
+      qrPayloadLegacy.mn = merchant.merchantName;
+      qrPayloadLegacy.mc = merchant.merchantCategory;
     }
 
     res.status(201).json({
@@ -119,7 +123,10 @@ tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) =>
           merchantCategory: merchant.merchantCategory,
         },
       }),
-      qrPayload: JSON.stringify(qrPayload),
+      // Universal Link URL - use this for QR code display
+      qrPayload: qrPayload,
+      // Legacy JSON format - for backward compatibility during transition
+      qrPayloadLegacy: JSON.stringify(qrPayloadLegacy),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

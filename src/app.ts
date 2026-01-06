@@ -2,6 +2,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { config } from './config/index.js';
 import { aliasRoutes } from './routes/aliases.js';
 import { transferRoutes } from './routes/transfers.js';
@@ -33,6 +34,19 @@ export function createApp(): Express {
   // Body parsing
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Serve .well-known files for Universal Links (Apple) and App Links (Android)
+  // These must be served with correct content-type for Apple verification
+  // Use process.cwd() to get project root - works for both dev and production
+  const wellKnownDir = path.join(process.cwd(), 'public', '.well-known');
+  app.use('/.well-known', express.static(wellKnownDir, {
+    setHeaders: (res, filePath) => {
+      // Apple requires application/json for AASA file
+      if (filePath.endsWith('apple-app-site-association')) {
+        res.setHeader('Content-Type', 'application/json');
+      }
+    },
+  }));
 
   // Health check (no auth required)
   app.use('/health', healthRoutes);
