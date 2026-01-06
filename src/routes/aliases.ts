@@ -29,7 +29,7 @@ aliasRoutes.post('/', requireAuth, async (req: Request, res: Response) => {
     const user = req.user!;
 
     let value: string;
-    let type: AliasType = body.type as AliasType;
+    const type: AliasType = body.type as AliasType;
 
     // Generate random key if type is RANDOM_KEY
     if (type === 'RANDOM_KEY') {

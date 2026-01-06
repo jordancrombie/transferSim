@@ -5,6 +5,19 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-01-06
+
+### Fixed
+
+- **ESLint Configuration**
+  - Added missing `typescript-eslint` package for flat config format
+  - Fixed lint errors in `auth.ts`, `aliases.ts`, and test files
+  - CI pipeline lint step now passes
+
+### Changed
+
+- Buildkite CI/CD pipelines added (managed outside repo)
+
 ## [0.3.0] - 2026-01-04
 
 ### Added

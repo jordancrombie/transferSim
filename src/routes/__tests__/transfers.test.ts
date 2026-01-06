@@ -137,7 +137,6 @@ describe('POST /api/v1/transfers - Multi-Bank Support', () => {
 describe('POST /api/v1/transfers - Account ID Field Name Compatibility', () => {
   let orchestratorApiKey: string;
   const testUserId = 'user_field_compat';
-  const recipientUserId = 'user_multibank_recipient';
 
   beforeAll(async () => {
     const orchestrator = await prisma.orchestrator.findFirst({

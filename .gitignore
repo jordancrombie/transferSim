@@ -164,3 +164,6 @@ scripts/aws-admin.sh
 *.swp
 *.swo
 *~
+
+# Buildkite pipelines (managed separately, not in repo)
+.buildkite/

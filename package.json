@@ -1,6 +1,6 @@
 {
   "name": "transfersim",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "P2P Transfer Network for BSIM ecosystem",
   "main": "dist/index.js",
   "scripts": {
@@ -50,7 +50,8 @@
     "prisma": "^5.22.0",
     "ts-jest": "^29.2.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.52.0"
   },
   "engines": {
     "node": ">=18.0.0"
