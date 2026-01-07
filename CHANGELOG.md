@@ -5,6 +5,23 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-06
+
+### Added
+
+- **Micro Merchant Transfer Integration**
+  - Transfers automatically detect if recipient is a registered Micro Merchant
+  - Merchant payments tagged with `recipientType: MICRO_MERCHANT`
+  - Fee calculation applied to merchant payments (< $200: $0.25, >= $200: $0.50)
+  - Merchant stats updated after transfer completion (totalReceived, totalTransactions, totalFees)
+
+### Changed
+
+- **Token Resolution: Merchant-Friendly Response Format**
+  - `recipientType` now returns `"merchant"` or `"individual"` (instead of `MICRO_MERCHANT`/`INDIVIDUAL`)
+  - Added `merchantName` and `merchantCategory` at top level for mwsim UI
+  - Kept nested `merchant` object for backward compatibility
+
 ## [0.4.3] - 2026-01-06
 
 ### Added

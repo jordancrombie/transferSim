@@ -308,18 +308,27 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       }
     }
 
+    // Map recipientType to mwsim-expected format
+    // MICRO_MERCHANT -> "merchant", INDIVIDUAL -> "individual"
+    const recipientTypeForClient = token.recipientType === 'MICRO_MERCHANT' ? 'merchant' : 'individual';
+
     res.json({
       tokenId: token.tokenId,
       type: token.type,
-      recipientType: token.recipientType,
+      recipientType: recipientTypeForClient,  // "merchant" or "individual"
       recipientAlias: recipientAlias,  // For mwsim to call POST /api/v1/transfers
       recipientAliasType: aliasInfo?.type || null,  // EMAIL, PHONE, USERNAME, RANDOM_KEY
       recipientBsimId: token.bsimId,   // Recipient's bank ID
+      // Merchant-specific fields at top level for mwsim
+      ...(merchantInfo && {
+        merchantName: merchantInfo.merchantName,
+        merchantCategory: merchantInfo.merchantCategory,
+      }),
       amount: token.amount?.toString(),
       currency: token.currency,
       description: token.description,
       alias: aliasInfo,
-      merchant: merchantInfo,
+      merchant: merchantInfo,  // Keep nested object for backward compatibility
       expiresAt: token.expiresAt,
     });
   } catch (error) {

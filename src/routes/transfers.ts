@@ -9,6 +9,7 @@ import { AliasType, TransferStatus } from '@prisma/client';
 import { config } from '../config/index.js';
 import { BsimClient } from '../services/bsimClient.js';
 import { sendTransferCompletedWebhook, buildTransferCompletedPayload } from '../services/webhookService.js';
+import { calculateFee } from './micro-merchants.js';
 
 export const transferRoutes = Router();
 
@@ -479,13 +480,30 @@ async function processTransfer(transferId: string): Promise<void> {
     return;
   }
 
-  // Update transfer with recipient info
+  // Check if recipient is a registered Micro Merchant
+  const merchant = await prisma.microMerchant.findUnique({
+    where: {
+      userId_bsimId: {
+        userId: recipientAlias.userId,
+        bsimId: recipientAlias.bsimId,
+      },
+    },
+  });
+
+  // Calculate fee if this is a merchant payment
+  const isMerchantPayment = merchant && merchant.isActive;
+  const feeAmount = isMerchantPayment ? calculateFee(transfer.amount.toNumber()) : null;
+
+  // Update transfer with recipient info and merchant details
   await prisma.transfer.update({
     where: { id: transferId },
     data: {
       recipientUserId: recipientAlias.userId,
       recipientBsimId: recipientAlias.bsimId,
       recipientAccountId: recipientAlias.accountId,
+      recipientType: isMerchantPayment ? 'MICRO_MERCHANT' : 'INDIVIDUAL',
+      microMerchantId: isMerchantPayment ? merchant.merchantId : null,
+      feeAmount: feeAmount ? new Decimal(feeAmount) : null,
       status: 'DEBITING',
     },
   });
@@ -590,7 +608,7 @@ async function executeSameBankTransfer(
   }
 
   // Transfer complete
-  await prisma.transfer.update({
+  const completedTransfer = await prisma.transfer.update({
     where: { id: transferId },
     data: {
       status: 'COMPLETED',
@@ -601,6 +619,9 @@ async function executeSameBankTransfer(
   });
 
   console.log(`Transfer ${transfer.transferId} completed: ${transfer.amount} ${transfer.currency} from ${transfer.senderUserId} to ${recipientAlias.userId}`);
+
+  // Update merchant stats if this was a merchant payment
+  await updateMerchantStatsIfApplicable(completedTransfer);
 
   // Send push notification webhook to WSIM (fire-and-forget)
   await sendTransferCompletedNotification({
@@ -616,6 +637,40 @@ async function executeSameBankTransfer(
     description: transfer.description,
     isCrossBank: false,
   });
+}
+
+// Helper to update merchant stats after completed transfer
+async function updateMerchantStatsIfApplicable(transfer: {
+  recipientType: string;
+  microMerchantId: string | null;
+  recipientUserId: string | null;
+  recipientBsimId: string | null;
+  amount: Decimal;
+  feeAmount: Decimal | null;
+}): Promise<void> {
+  if (transfer.recipientType !== 'MICRO_MERCHANT' || !transfer.recipientUserId || !transfer.recipientBsimId) {
+    return;
+  }
+
+  try {
+    await prisma.microMerchant.update({
+      where: {
+        userId_bsimId: {
+          userId: transfer.recipientUserId,
+          bsimId: transfer.recipientBsimId,
+        },
+      },
+      data: {
+        totalReceived: { increment: transfer.amount },
+        totalTransactions: { increment: 1 },
+        totalFees: { increment: transfer.feeAmount || new Decimal(0) },
+      },
+    });
+    console.log(`[Merchant] Updated stats for merchant receiving ${transfer.amount}`);
+  } catch (error) {
+    // Log but don't fail - stats update is secondary to transfer completion
+    console.error('[Merchant] Failed to update merchant stats:', error);
+  }
 }
 
 // Execute cross-bank transfer via BSIM P2P APIs
@@ -718,7 +773,7 @@ async function executeCrossBankTransfer(
   }
 
   // Transfer complete
-  await prisma.transfer.update({
+  const completedTransfer = await prisma.transfer.update({
     where: { id: transferId },
     data: {
       status: 'COMPLETED',
@@ -729,6 +784,9 @@ async function executeCrossBankTransfer(
   });
 
   console.log(`Cross-bank transfer ${transfer.transferId} completed: ${transfer.amount} ${transfer.currency} from ${transfer.senderBsimId}:${transfer.senderUserId} to ${recipientAlias.bsimId}:${recipientAlias.userId}`);
+
+  // Update merchant stats if this was a merchant payment
+  await updateMerchantStatsIfApplicable(completedTransfer);
 
   // Send push notification webhook to WSIM (fire-and-forget)
   await sendTransferCompletedNotification({
