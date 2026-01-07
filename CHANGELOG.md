@@ -5,6 +5,17 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-01-07
+
+### Added
+
+- **Merchant Dashboard: Today's Stats**
+  - `GET /api/v1/micro-merchants/me/dashboard` now includes `today` object
+  - `today.totalReceived` - Revenue received today (UTC)
+  - `today.totalTransactions` - Transaction count today
+  - `today.totalFees` - Fees collected today
+  - Uses UTC start of day for consistent timezone handling
+
 ## [0.5.0] - 2026-01-06
 
 ### Added

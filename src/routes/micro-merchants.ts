@@ -330,6 +330,27 @@ microMerchantRoutes.get('/me/dashboard', requireAuth, async (req: Request, res: 
       _count: true,
     });
 
+    // Calculate today's metrics (UTC start of day)
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+
+    const todayStats = await prisma.transfer.aggregate({
+      where: {
+        recipientUserId: user.userId,
+        recipientBsimId: user.bsimId,
+        recipientType: 'MICRO_MERCHANT',
+        status: 'COMPLETED',
+        completedAt: {
+          gte: todayStart,
+        },
+      },
+      _sum: {
+        amount: true,
+        feeAmount: true,
+      },
+      _count: true,
+    });
+
     res.json({
       merchantId: merchant.merchantId,
       merchantName: merchant.merchantName,
@@ -338,15 +359,20 @@ microMerchantRoutes.get('/me/dashboard', requireAuth, async (req: Request, res: 
         totalTransactions: merchant.totalTransactions,
         totalFees: merchant.totalFees.toString(),
       },
-      last30Days: {
-        totalReceived: thirtyDayStats._sum.amount?.toString() || '0',
-        totalTransactions: thirtyDayStats._count,
-        totalFees: thirtyDayStats._sum.feeAmount?.toString() || '0',
+      today: {
+        totalReceived: todayStats._sum.amount?.toString() || '0',
+        totalTransactions: todayStats._count,
+        totalFees: todayStats._sum.feeAmount?.toString() || '0',
       },
       last7Days: {
         totalReceived: sevenDayStats._sum.amount?.toString() || '0',
         totalTransactions: sevenDayStats._count,
         totalFees: sevenDayStats._sum.feeAmount?.toString() || '0',
+      },
+      last30Days: {
+        totalReceived: thirtyDayStats._sum.amount?.toString() || '0',
+        totalTransactions: thirtyDayStats._count,
+        totalFees: thirtyDayStats._sum.feeAmount?.toString() || '0',
       },
       recentTransactions: recentTransactions.map(t => ({
         transferId: t.transferId,
