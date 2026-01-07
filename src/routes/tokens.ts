@@ -313,6 +313,7 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       type: token.type,
       recipientType: token.recipientType,
       recipientAlias: recipientAlias,  // For mwsim to call POST /api/v1/transfers
+      recipientAliasType: aliasInfo?.type || null,  // EMAIL, PHONE, USERNAME, RANDOM_KEY
       recipientBsimId: token.bsimId,   // Recipient's bank ID
       amount: token.amount?.toString(),
       currency: token.currency,
