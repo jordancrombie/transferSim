@@ -22,6 +22,8 @@ async function sendTransferCompletedNotification(params: {
   recipientBsimId: string;
   recipientAlias: string;
   recipientAliasType: AliasType;
+  recipientType: string;  // 'INDIVIDUAL' or 'MICRO_MERCHANT'
+  microMerchantId: string | null;
   amount: string;
   currency: string;
   description: string | null;
@@ -54,6 +56,18 @@ async function sendTransferCompletedNotification(params: {
       prisma.bsimConnection.findUnique({ where: { bsimId: params.recipientBsimId } }),
     ]);
 
+    // Fetch merchant name if this is a merchant payment
+    let merchantName: string | null = null;
+    if (params.recipientType === 'MICRO_MERCHANT' && params.microMerchantId) {
+      const merchant = await prisma.microMerchant.findUnique({
+        where: { merchantId: params.microMerchantId },
+      });
+      merchantName = merchant?.merchantName || null;
+    }
+
+    // Map recipientType to client format: 'MICRO_MERCHANT' -> 'merchant', 'INDIVIDUAL' -> 'individual'
+    const recipientTypeForClient = params.recipientType === 'MICRO_MERCHANT' ? 'merchant' : 'individual';
+
     // Build and send webhook
     const payload = buildTransferCompletedPayload({
       transferId: params.transferId,
@@ -61,6 +75,8 @@ async function sendTransferCompletedNotification(params: {
       recipientBsimId: params.recipientBsimId,
       recipientAlias: params.recipientAlias,
       recipientAliasType: params.recipientAliasType,
+      recipientType: recipientTypeForClient,
+      merchantName,
       senderDisplayName,
       senderAlias: senderAlias?.value || null,
       senderBankName: senderBank?.name || 'Unknown Bank',
@@ -632,6 +648,8 @@ async function executeSameBankTransfer(
     recipientBsimId: recipientAlias.bsimId,
     recipientAlias: transfer.recipientAlias,
     recipientAliasType: transfer.recipientAliasType,
+    recipientType: completedTransfer.recipientType,
+    microMerchantId: completedTransfer.microMerchantId,
     amount: transfer.amount.toString(),
     currency: transfer.currency,
     description: transfer.description,
@@ -797,6 +815,8 @@ async function executeCrossBankTransfer(
     recipientBsimId: recipientAlias.bsimId,
     recipientAlias: transfer.recipientAlias,
     recipientAliasType: transfer.recipientAliasType,
+    recipientType: completedTransfer.recipientType,
+    microMerchantId: completedTransfer.microMerchantId,
     amount: transfer.amount.toString(),
     currency: transfer.currency,
     description: transfer.description,

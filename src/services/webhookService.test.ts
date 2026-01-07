@@ -35,6 +35,8 @@ describe('webhookService', () => {
         recipientBsimId: 'bsim_bank1',
         recipientAlias: '@mobile',
         recipientAliasType: 'USERNAME',
+        recipientType: 'individual' as const,
+        merchantName: null,
         senderDisplayName: 'John D.',
         senderAlias: '@john',
         senderBankName: 'Test Bank',
@@ -55,6 +57,8 @@ describe('webhookService', () => {
       expect(payload.data.recipientBsimId).toBe('bsim_bank1');
       expect(payload.data.recipientAlias).toBe('@mobile');
       expect(payload.data.recipientAliasType).toBe('USERNAME');
+      expect(payload.data.recipientType).toBe('individual');
+      expect(payload.data.merchantName).toBeNull();
       expect(payload.data.senderDisplayName).toBe('John D.');
       expect(payload.data.senderAlias).toBe('@john');
       expect(payload.data.senderBankName).toBe('Test Bank');
@@ -65,13 +69,15 @@ describe('webhookService', () => {
       expect(payload.data.isCrossBank).toBe(false);
     });
 
-    it('should handle null sender alias', () => {
+    it('should handle null sender alias and merchant payment', () => {
       const params = {
         transferId: 'p2p_abc123',
         recipientUserId: 'user_xyz789',
         recipientBsimId: 'bsim_bank1',
         recipientAlias: '@mobile',
         recipientAliasType: 'USERNAME',
+        recipientType: 'merchant' as const,
+        merchantName: "Sarah's Bakery",
         senderDisplayName: 'John D.',
         senderAlias: null,
         senderBankName: 'Test Bank',
@@ -87,6 +93,8 @@ describe('webhookService', () => {
       expect(payload.data.senderAlias).toBeNull();
       expect(payload.data.description).toBeNull();
       expect(payload.data.isCrossBank).toBe(true);
+      expect(payload.data.recipientType).toBe('merchant');
+      expect(payload.data.merchantName).toBe("Sarah's Bakery");
     });
 
     it('should use transferId as idempotency key', () => {
@@ -96,6 +104,8 @@ describe('webhookService', () => {
         recipientBsimId: 'bsim_bank1',
         recipientAlias: '@mobile',
         recipientAliasType: 'USERNAME',
+        recipientType: 'individual' as const,
+        merchantName: null,
         senderDisplayName: 'John D.',
         senderAlias: '@john',
         senderBankName: 'Test Bank',
@@ -123,6 +133,8 @@ describe('webhookService', () => {
         recipientBsimId: 'bsim_bank1',
         recipientAlias: '@test',
         recipientAliasType: 'USERNAME',
+        recipientType: 'individual',
+        merchantName: null,
         senderDisplayName: 'Test User',
         senderAlias: '@sender',
         senderBankName: 'Bank A',

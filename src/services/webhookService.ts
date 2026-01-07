@@ -21,6 +21,8 @@ export interface TransferCompletedPayload {
     recipientBsimId: string;      // Required for WSIM user lookup
     recipientAlias: string;
     recipientAliasType: string;
+    recipientType: 'individual' | 'merchant';  // For mwsim dashboard refresh
+    merchantName: string | null;               // Merchant name if recipientType is 'merchant'
     senderDisplayName: string;
     senderAlias: string | null;
     senderBankName: string;
@@ -152,6 +154,8 @@ export function buildTransferCompletedPayload(params: {
   recipientBsimId: string;
   recipientAlias: string;
   recipientAliasType: string;
+  recipientType: 'individual' | 'merchant';
+  merchantName: string | null;
   senderDisplayName: string;
   senderAlias: string | null;
   senderBankName: string;
@@ -171,6 +175,8 @@ export function buildTransferCompletedPayload(params: {
       recipientBsimId: params.recipientBsimId,
       recipientAlias: params.recipientAlias,
       recipientAliasType: params.recipientAliasType,
+      recipientType: params.recipientType,
+      merchantName: params.merchantName,
       senderDisplayName: params.senderDisplayName,
       senderAlias: params.senderAlias,
       senderBankName: params.senderBankName,
