@@ -235,9 +235,12 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       return;
     }
 
-    // Get alias info if available
+    // Get alias info - first try the specific aliasId, otherwise get primary alias
     let aliasInfo = null;
+    let recipientAlias: string | null = null;
+
     if (token.aliasId) {
+      // Use the specific alias attached to the token
       const alias = await prisma.alias.findUnique({
         where: { id: token.aliasId },
       });
@@ -246,6 +249,47 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
           type: alias.type,
           value: alias.value,
         };
+        recipientAlias = alias.value;
+      }
+    }
+
+    // If no alias from token, look up recipient's primary alias
+    if (!recipientAlias && token.userId && token.bsimId) {
+      const primaryAlias = await prisma.alias.findFirst({
+        where: {
+          userId: token.userId,
+          bsimId: token.bsimId,
+          isActive: true,
+          isPrimary: true,
+        },
+      });
+      if (primaryAlias) {
+        recipientAlias = primaryAlias.value;
+        // Also populate aliasInfo if not already set
+        if (!aliasInfo) {
+          aliasInfo = {
+            type: primaryAlias.type,
+            value: primaryAlias.value,
+          };
+        }
+      } else {
+        // Fall back to any active alias
+        const anyAlias = await prisma.alias.findFirst({
+          where: {
+            userId: token.userId,
+            bsimId: token.bsimId,
+            isActive: true,
+          },
+        });
+        if (anyAlias) {
+          recipientAlias = anyAlias.value;
+          if (!aliasInfo) {
+            aliasInfo = {
+              type: anyAlias.type,
+              value: anyAlias.value,
+            };
+          }
+        }
       }
     }
 
@@ -268,6 +312,8 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       tokenId: token.tokenId,
       type: token.type,
       recipientType: token.recipientType,
+      recipientAlias: recipientAlias,  // For mwsim to call POST /api/v1/transfers
+      recipientBsimId: token.bsimId,   // Recipient's bank ID
       amount: token.amount?.toString(),
       currency: token.currency,
       description: token.description,
