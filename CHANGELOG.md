@@ -5,6 +5,17 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-01-07
+
+### Added
+
+- **Debug Logging for Troubleshooting**
+  - Webhook service now logs full payload JSON before sending to WSIM
+  - Transfer route logs incoming request body and user context
+  - Transfer notification helper logs params, merchant lookup, and recipientType mapping
+  - Token routes log creation requests, responses, and resolution details
+  - All logs prefixed with `[Webhook]`, `[Transfer]`, or `[Token]` for easy filtering
+
 ## [0.6.0] - 2026-01-07
 
 ### Added

@@ -69,6 +69,10 @@ async function sendWithRetry(
   const body = JSON.stringify(payload);
   const signature = signPayload(body, secret);
 
+  // Debug: Log full payload being sent
+  console.log(`[Webhook] Sending ${payload.eventType} to ${url}`);
+  console.log(`[Webhook] Full payload:`, JSON.stringify(payload, null, 2));
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await fetch(url, {

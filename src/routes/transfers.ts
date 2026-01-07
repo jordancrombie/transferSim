@@ -29,6 +29,10 @@ async function sendTransferCompletedNotification(params: {
   description: string | null;
   isCrossBank: boolean;
 }): Promise<void> {
+  // Debug: Log notification params
+  console.log(`[Webhook] Preparing notification for transfer ${params.transferId}`);
+  console.log(`[Webhook] Notification params:`, JSON.stringify(params, null, 2));
+
   try {
     // Fetch sender's display name from BSIM
     let senderDisplayName = 'Unknown';
@@ -63,10 +67,12 @@ async function sendTransferCompletedNotification(params: {
         where: { merchantId: params.microMerchantId },
       });
       merchantName = merchant?.merchantName || null;
+      console.log(`[Webhook] Merchant lookup: merchantId=${params.microMerchantId}, found=${!!merchant}, merchantName=${merchantName}`);
     }
 
     // Map recipientType to client format: 'MICRO_MERCHANT' -> 'merchant', 'INDIVIDUAL' -> 'individual'
     const recipientTypeForClient = params.recipientType === 'MICRO_MERCHANT' ? 'merchant' : 'individual';
+    console.log(`[Webhook] recipientType mapping: ${params.recipientType} -> ${recipientTypeForClient}`);
 
     // Build and send webhook
     const payload = buildTransferCompletedPayload({
@@ -130,6 +136,11 @@ const listTransfersSchema = z.object({
 
 // POST /api/v1/transfers - Initiate P2P transfer
 transferRoutes.post('/', requireAuth, requirePermission('canInitiateTransfers'), async (req: Request, res: Response) => {
+  // Debug: Log incoming transfer request
+  console.log(`[Transfer] POST /api/v1/transfers - Incoming request`);
+  console.log(`[Transfer] Request body:`, JSON.stringify(req.body, null, 2));
+  console.log(`[Transfer] User context: userId=${req.user?.userId}, bsimId=${req.user?.bsimId}`);
+
   try {
     const body = createTransferSchema.parse(req.body);
     const user = req.user!;

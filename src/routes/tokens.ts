@@ -27,6 +27,11 @@ const createSendTokenSchema = z.object({
 
 // POST /api/v1/tokens/receive - Generate receive token (for QR code)
 tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) => {
+  // Debug: Log incoming token creation request
+  console.log(`[Token] POST /api/v1/tokens/receive - Incoming request`);
+  console.log(`[Token] Request body:`, JSON.stringify(req.body, null, 2));
+  console.log(`[Token] User context: userId=${req.user?.userId}, bsimId=${req.user?.bsimId}`);
+
   try {
     const body = createReceiveTokenSchema.parse(req.body);
     const user = req.user!;
@@ -108,7 +113,7 @@ tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) =>
       qrPayloadLegacy.mc = merchant.merchantCategory;
     }
 
-    res.status(201).json({
+    const response = {
       tokenId: token.tokenId,
       type: token.type,
       recipientType: token.recipientType,
@@ -127,7 +132,13 @@ tokenRoutes.post('/receive', requireAuth, async (req: Request, res: Response) =>
       qrPayload: qrPayload,
       // Legacy JSON format - for backward compatibility during transition
       qrPayloadLegacy: JSON.stringify(qrPayloadLegacy),
-    });
+    };
+
+    // Debug: Log token creation response
+    console.log(`[Token] Created token ${token.tokenId}, recipientType=${token.recipientType}, asMerchant=${body.asMerchant}`);
+    console.log(`[Token] Response:`, JSON.stringify(response, null, 2));
+
+    res.status(201).json(response);
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({
@@ -202,9 +213,13 @@ tokenRoutes.post('/send', requireAuth, async (req: Request, res: Response) => {
 
 // GET /api/v1/tokens/:tokenId - Resolve token
 tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) => {
-  try {
-    const { tokenId } = req.params;
+  const { tokenId } = req.params;
 
+  // Debug: Log token resolution request
+  console.log(`[Token] GET /api/v1/tokens/${tokenId} - Resolving token`);
+  console.log(`[Token] User context: userId=${req.user?.userId}, bsimId=${req.user?.bsimId}`);
+
+  try {
     const token = await prisma.token.findUnique({
       where: { tokenId },
     });
@@ -312,7 +327,12 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
     // MICRO_MERCHANT -> "merchant", INDIVIDUAL -> "individual"
     const recipientTypeForClient = token.recipientType === 'MICRO_MERCHANT' ? 'merchant' : 'individual';
 
-    res.json({
+    // Debug: Log token data and mapping
+    console.log(`[Token] Token found: type=${token.type}, recipientType=${token.recipientType}, microMerchantId=${token.microMerchantId}`);
+    console.log(`[Token] recipientType mapping: ${token.recipientType} -> ${recipientTypeForClient}`);
+    console.log(`[Token] Merchant info:`, merchantInfo ? JSON.stringify(merchantInfo) : 'null');
+
+    const response = {
       tokenId: token.tokenId,
       type: token.type,
       recipientType: recipientTypeForClient,  // "merchant" or "individual"
@@ -330,7 +350,12 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       alias: aliasInfo,
       merchant: merchantInfo,  // Keep nested object for backward compatibility
       expiresAt: token.expiresAt,
-    });
+    };
+
+    // Debug: Log full response
+    console.log(`[Token] Resolution response:`, JSON.stringify(response, null, 2));
+
+    res.json(response);
   } catch (error) {
     console.error('Resolve token error:', error);
     res.status(500).json({
