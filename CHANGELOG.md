@@ -5,6 +5,18 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-01-07
+
+### Added
+
+- **Webhook Specification Documentation**
+  - New `docs/webhook-spec.md` with complete `transfer.completed` webhook documentation
+  - Field reference with types, nullable status, and example values
+  - HMAC-SHA256 signature verification code examples
+  - Retry policy documentation
+  - Integration notes for WSIM and mwsim teams
+  - Example payloads for individual and merchant payments
+
 ## [0.5.2] - 2026-01-07
 
 ### Added
