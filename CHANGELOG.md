@@ -5,6 +5,20 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-01-07
+
+### Added
+
+- **Token Resolution: Recipient Details**
+  - `GET /api/v1/tokens/:tokenId` now returns `recipientDisplayName` (from BSIM)
+  - `GET /api/v1/tokens/:tokenId` now returns `recipientBankName` (from BSIM connection)
+  - Enables mwsim to show recipient info on payment confirmation screen
+
+- **Merchant Dashboard: Client Timezone Support**
+  - `GET /api/v1/micro-merchants/me/dashboard` now accepts `tzOffset` query parameter
+  - Pass JavaScript's `getTimezoneOffset()` value (minutes) for accurate "today" stats
+  - Fixes issue where "today" stats used UTC instead of merchant's local timezone
+
 ## [0.6.1] - 2026-01-07
 
 ### Added

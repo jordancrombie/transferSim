@@ -330,9 +330,24 @@ microMerchantRoutes.get('/me/dashboard', requireAuth, async (req: Request, res: 
       _count: true,
     });
 
-    // Calculate today's metrics (UTC start of day)
-    const todayStart = new Date();
-    todayStart.setUTCHours(0, 0, 0, 0);
+    // Calculate today's metrics using client timezone
+    // Accept timezone offset in minutes from JavaScript's getTimezoneOffset()
+    // getTimezoneOffset() returns positive for west of UTC (e.g., 300 for Eastern = UTC-5)
+    const tzOffset = parseInt(req.query.tzOffset as string) || 0;
+
+    // Calculate start of day in client's local timezone
+    const now = new Date();
+
+    // Step 1: Convert UTC to local time by SUBTRACTING offset (since offset is positive for west)
+    const localTime = new Date(now.getTime() - tzOffset * 60 * 1000);
+
+    // Step 2: Set to start of day (midnight) in this local representation
+    localTime.setUTCHours(0, 0, 0, 0);
+
+    // Step 3: Convert back to UTC by ADDING offset
+    const todayStart = new Date(localTime.getTime() + tzOffset * 60 * 1000);
+
+    console.log(`[Dashboard] tzOffset=${tzOffset}, todayStart=${todayStart.toISOString()}, now=${now.toISOString()}`);
 
     const todayStats = await prisma.transfer.aggregate({
       where: {

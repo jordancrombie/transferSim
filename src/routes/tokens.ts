@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { generateTokenId } from '../utils/id.js';
 import { config } from '../config/index.js';
+import { BsimClient } from '../services/bsimClient.js';
 
 export const tokenRoutes = Router();
 
@@ -327,10 +328,34 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
     // MICRO_MERCHANT -> "merchant", INDIVIDUAL -> "individual"
     const recipientTypeForClient = token.recipientType === 'MICRO_MERCHANT' ? 'merchant' : 'individual';
 
+    // Fetch recipient's display name from BSIM
+    let recipientDisplayName = 'Unknown';
+    if (token.userId && token.bsimId) {
+      const bsimClient = await BsimClient.forBsim(token.bsimId);
+      if (bsimClient) {
+        const verifyResult = await bsimClient.verifyUser({ userId: token.userId });
+        if (verifyResult.exists && verifyResult.displayName) {
+          recipientDisplayName = verifyResult.displayName;
+        }
+      }
+    }
+
+    // Fetch recipient's bank name from BSIM connection
+    let recipientBankName = 'Unknown Bank';
+    if (token.bsimId) {
+      const bsimConnection = await prisma.bsimConnection.findUnique({
+        where: { bsimId: token.bsimId },
+      });
+      if (bsimConnection?.name) {
+        recipientBankName = bsimConnection.name;
+      }
+    }
+
     // Debug: Log token data and mapping
     console.log(`[Token] Token found: type=${token.type}, recipientType=${token.recipientType}, microMerchantId=${token.microMerchantId}`);
     console.log(`[Token] recipientType mapping: ${token.recipientType} -> ${recipientTypeForClient}`);
     console.log(`[Token] Merchant info:`, merchantInfo ? JSON.stringify(merchantInfo) : 'null');
+    console.log(`[Token] recipientDisplayName=${recipientDisplayName}, recipientBankName=${recipientBankName}`);
 
     const response = {
       tokenId: token.tokenId,
@@ -339,6 +364,8 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       recipientAlias: recipientAlias,  // For mwsim to call POST /api/v1/transfers
       recipientAliasType: aliasInfo?.type || null,  // EMAIL, PHONE, USERNAME, RANDOM_KEY
       recipientBsimId: token.bsimId,   // Recipient's bank ID
+      recipientDisplayName,  // User's display name from BSIM
+      recipientBankName,     // Bank name from BSIM connection
       // Merchant-specific fields at top level for mwsim
       ...(merchantInfo && {
         merchantName: merchantInfo.merchantName,
