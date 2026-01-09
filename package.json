@@ -1,6 +1,6 @@
 {
   "name": "transfersim",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "P2P Transfer Network for BSIM ecosystem",
   "main": "dist/index.js",
   "scripts": {

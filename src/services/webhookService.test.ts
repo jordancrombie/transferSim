@@ -39,6 +39,7 @@ describe('webhookService', () => {
         merchantName: null,
         senderDisplayName: 'John D.',
         senderAlias: '@john',
+        senderProfileImageUrl: 'https://cdn.banksim.ca/users/123/avatar.jpg',
         senderBankName: 'Test Bank',
         recipientBankName: 'Test Bank',
         amount: '100.00',
@@ -61,6 +62,7 @@ describe('webhookService', () => {
       expect(payload.data.merchantName).toBeNull();
       expect(payload.data.senderDisplayName).toBe('John D.');
       expect(payload.data.senderAlias).toBe('@john');
+      expect(payload.data.senderProfileImageUrl).toBe('https://cdn.banksim.ca/users/123/avatar.jpg');
       expect(payload.data.senderBankName).toBe('Test Bank');
       expect(payload.data.recipientBankName).toBe('Test Bank');
       expect(payload.data.amount).toBe('100.00');
@@ -69,7 +71,7 @@ describe('webhookService', () => {
       expect(payload.data.isCrossBank).toBe(false);
     });
 
-    it('should handle null sender alias and merchant payment', () => {
+    it('should handle null sender alias, null profile image, and merchant payment', () => {
       const params = {
         transferId: 'p2p_abc123',
         recipientUserId: 'user_xyz789',
@@ -80,6 +82,7 @@ describe('webhookService', () => {
         merchantName: "Sarah's Bakery",
         senderDisplayName: 'John D.',
         senderAlias: null,
+        senderProfileImageUrl: null,
         senderBankName: 'Test Bank',
         recipientBankName: 'Other Bank',
         amount: '50.00',
@@ -91,6 +94,7 @@ describe('webhookService', () => {
       const payload = buildTransferCompletedPayload(params);
 
       expect(payload.data.senderAlias).toBeNull();
+      expect(payload.data.senderProfileImageUrl).toBeNull();
       expect(payload.data.description).toBeNull();
       expect(payload.data.isCrossBank).toBe(true);
       expect(payload.data.recipientType).toBe('merchant');
@@ -108,6 +112,7 @@ describe('webhookService', () => {
         merchantName: null,
         senderDisplayName: 'John D.',
         senderAlias: '@john',
+        senderProfileImageUrl: null,
         senderBankName: 'Test Bank',
         recipientBankName: 'Test Bank',
         amount: '100.00',
@@ -137,6 +142,7 @@ describe('webhookService', () => {
         merchantName: null,
         senderDisplayName: 'Test User',
         senderAlias: '@sender',
+        senderProfileImageUrl: 'https://cdn.banksim.ca/users/456/avatar.jpg',
         senderBankName: 'Bank A',
         recipientBankName: 'Bank A',
         amount: '25.00',

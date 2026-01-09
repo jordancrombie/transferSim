@@ -8,6 +8,7 @@ import { generateTransferId } from '../utils/id.js';
 import { AliasType, TransferStatus } from '@prisma/client';
 import { config } from '../config/index.js';
 import { BsimClient } from '../services/bsimClient.js';
+import { WsimClient } from '../services/wsimClient.js';
 import { sendTransferCompletedWebhook, buildTransferCompletedPayload } from '../services/webhookService.js';
 import { calculateFee } from './micro-merchants.js';
 
@@ -41,6 +42,16 @@ async function sendTransferCompletedNotification(params: {
       const verifyResult = await senderBsimClient.verifyUser({ userId: params.senderUserId });
       if (verifyResult.exists && verifyResult.displayName) {
         senderDisplayName = verifyResult.displayName;
+      }
+    }
+
+    // Fetch sender's profile image URL from WSIM
+    let senderProfileImageUrl: string | null = null;
+    const wsimClient = WsimClient.create();
+    if (wsimClient) {
+      const profileResult = await wsimClient.getProfile(params.senderUserId, params.senderBsimId);
+      if (profileResult.profileImageUrl) {
+        senderProfileImageUrl = profileResult.profileImageUrl;
       }
     }
 
@@ -85,6 +96,7 @@ async function sendTransferCompletedNotification(params: {
       merchantName,
       senderDisplayName,
       senderAlias: senderAlias?.value || null,
+      senderProfileImageUrl,
       senderBankName: senderBank?.name || 'Unknown Bank',
       recipientBankName: recipientBank?.name || 'Unknown Bank',
       amount: params.amount,

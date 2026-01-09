@@ -4,8 +4,8 @@
 
 TransferSim sends HTTP POST webhooks to WSIM when transfers complete. WSIM uses these webhooks to trigger push notifications to recipient devices.
 
-**Current Version:** v0.6.0
-**Last Updated:** 2026-01-07
+**Current Version:** v0.7.0
+**Last Updated:** 2026-01-09
 
 ## Architecture Flow
 
@@ -79,6 +79,7 @@ interface TransferCompletedPayload {
     // Sender information (for notification display)
     senderDisplayName: string;
     senderAlias: string | null;
+    senderProfileImageUrl: string | null;
     senderBankName: string;
     recipientBankName: string;
 
@@ -112,6 +113,7 @@ interface TransferCompletedPayload {
 | `merchantName` | string | **Yes** | Business name or `null` | Only populated when `recipientType` is `"merchant"` |
 | `senderDisplayName` | string | No | Display name | Sender's name for notification display |
 | `senderAlias` | string | **Yes** | Alias or `null` | Sender's primary alias (may be null if none set) |
+| `senderProfileImageUrl` | string | **Yes** | URL or `null` | CloudFront URL to sender's profile image (null if not set) |
 | `senderBankName` | string | No | Bank name | e.g., "Tangerine", "RBC" |
 | `recipientBankName` | string | No | Bank name | Recipient's bank name |
 | `amount` | string | No | Decimal string | e.g., `"100.00"` (string to avoid floating point issues) |
@@ -140,6 +142,7 @@ interface TransferCompletedPayload {
     "merchantName": null,
     "senderDisplayName": "Bob Smith",
     "senderAlias": "@bob",
+    "senderProfileImageUrl": "https://d1234abcd.cloudfront.net/profiles/usr_bob123_bsim_rbc.jpg",
     "senderBankName": "RBC",
     "recipientBankName": "Tangerine",
     "amount": "50.00",
@@ -167,6 +170,7 @@ interface TransferCompletedPayload {
     "merchantName": "Sarah's Bakery",
     "senderDisplayName": "Bob Smith",
     "senderAlias": "@bob",
+    "senderProfileImageUrl": null,
     "senderBankName": "Tangerine",
     "recipientBankName": "Tangerine",
     "amount": "25.00",
@@ -191,7 +195,8 @@ interface TransferCompletedPayload {
 
 1. **Dashboard Refresh:** When receiving a push notification where `recipientType === "merchant"`, trigger a merchant dashboard refresh
 2. **Notification Display:** Use `senderDisplayName` and `amount` for notification content
-3. **Values are lowercase:** `recipientType` is `"individual"` or `"merchant"` (not `INDIVIDUAL` or `MICRO_MERCHANT`)
+3. **Profile Images:** Use `senderProfileImageUrl` to display sender's avatar in notification UI (may be null - show default avatar)
+4. **Values are lowercase:** `recipientType` is `"individual"` or `"merchant"` (not `INDIVIDUAL` or `MICRO_MERCHANT`)
 
 ---
 
@@ -210,6 +215,7 @@ TransferSim requires these environment variables for webhook delivery:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.7.0 | 2026-01-09 | Added `senderProfileImageUrl` field for notification avatars |
 | 0.6.0 | 2026-01-07 | Initial documentation |
 | 0.5.2 | 2026-01-07 | Added `recipientType` and `merchantName` fields |
 | 0.3.0 | 2026-01-04 | Initial webhook implementation |

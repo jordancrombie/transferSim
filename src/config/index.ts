@@ -38,6 +38,12 @@ export const config = {
     wsimNotificationSecret: process.env.WSIM_WEBHOOK_SECRET || '',
   },
 
+  // WSIM Internal API (for profile image lookup)
+  wsim: {
+    internalApiUrl: process.env.WSIM_INTERNAL_API_URL || '',
+    internalApiKey: process.env.WSIM_INTERNAL_API_KEY || '',
+  },
+
   // Transfer Limits
   limits: {
     defaultTransferLimit: parseFloat(process.env.DEFAULT_TRANSFER_LIMIT || '10000'),
