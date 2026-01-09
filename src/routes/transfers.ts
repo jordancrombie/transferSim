@@ -307,6 +307,9 @@ transferRoutes.get('/', requireAuth, requirePermission('canViewTransfers'), asyn
           direction,
           createdAt: t.createdAt,
           completedAt: t.completedAt,
+          // Include profile image URLs (captured at transfer completion)
+          senderProfileImageUrl: t.senderProfileImageUrl,
+          recipientProfileImageUrl: t.recipientProfileImageUrl,
         };
 
         // For received transfers, include sender info
@@ -646,6 +649,19 @@ async function executeSameBankTransfer(
     return;
   }
 
+  // Fetch profile images for both sender and recipient (for history display)
+  let senderProfileImageUrl: string | null = null;
+  let recipientProfileImageUrl: string | null = null;
+  const wsimClient = WsimClient.create();
+  if (wsimClient) {
+    const [senderProfile, recipientProfile] = await Promise.all([
+      wsimClient.getProfile(transfer.senderUserId, transfer.senderBsimId),
+      wsimClient.getProfile(recipientAlias.userId, recipientAlias.bsimId),
+    ]);
+    senderProfileImageUrl = senderProfile.profileImageUrl || null;
+    recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
+  }
+
   // Transfer complete
   const completedTransfer = await prisma.transfer.update({
     where: { id: transferId },
@@ -654,6 +670,8 @@ async function executeSameBankTransfer(
       statusMessage: 'Transfer completed successfully',
       completedAt: new Date(),
       creditTransactionId: creditResult.transactionId,
+      senderProfileImageUrl,
+      recipientProfileImageUrl,
     },
   });
 
@@ -813,6 +831,19 @@ async function executeCrossBankTransfer(
     return;
   }
 
+  // Fetch profile images for both sender and recipient (for history display)
+  let senderProfileImageUrl: string | null = null;
+  let recipientProfileImageUrl: string | null = null;
+  const wsimClient = WsimClient.create();
+  if (wsimClient) {
+    const [senderProfile, recipientProfile] = await Promise.all([
+      wsimClient.getProfile(transfer.senderUserId, transfer.senderBsimId),
+      wsimClient.getProfile(recipientAlias.userId, recipientAlias.bsimId),
+    ]);
+    senderProfileImageUrl = senderProfile.profileImageUrl || null;
+    recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
+  }
+
   // Transfer complete
   const completedTransfer = await prisma.transfer.update({
     where: { id: transferId },
@@ -821,6 +852,8 @@ async function executeCrossBankTransfer(
       statusMessage: 'Cross-bank transfer completed successfully',
       completedAt: new Date(),
       creditTransactionId: creditResult.transactionId,
+      senderProfileImageUrl,
+      recipientProfileImageUrl,
     },
   });
 

@@ -5,6 +5,21 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-01-09
+
+### Added
+
+- **Profile Image URLs in Transfer History API**
+  - Transfer records now store `senderProfileImageUrl` and `recipientProfileImageUrl`
+  - Profile images captured at transfer completion (both sender and recipient)
+  - `GET /api/v1/transfers` response includes profile image URLs for history display
+  - Enables mwsim to display avatars in transaction history instead of initials only
+  - Uses stored URLs (Option A approach) for fast queries without runtime lookups
+
+- **Database Migration**
+  - New fields added to Transfer model: `senderProfileImageUrl`, `recipientProfileImageUrl`
+  - Migration: `20260109200000_add_profile_image_urls_to_transfer`
+
 ## [0.7.0] - 2026-01-09
 
 ### Added

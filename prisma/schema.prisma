@@ -107,6 +107,10 @@ model Transfer {
   // Orchestrator info
   orchestratorId      String?
 
+  // Profile images (captured at transfer creation for history display)
+  senderProfileImageUrl    String?   // Sender's profile image URL from WSIM
+  recipientProfileImageUrl String?   // Recipient's profile image URL (WSIM for individuals, MicroMerchant for merchants)
+
   // Timestamps
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
