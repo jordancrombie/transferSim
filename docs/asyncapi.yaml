@@ -1,0 +1,239 @@
+asyncapi: 3.0.0
+info:
+  title: TransferSim Webhooks
+  version: 0.7.0
+  description: |
+    Webhook events sent by TransferSim to notify external systems of transfer completions.
+
+    TransferSim sends HTTP POST webhooks to WSIM when transfers complete, enabling push
+    notifications to recipient devices.
+
+    ## Authentication
+
+    All webhooks are signed using HMAC-SHA256. The signature is included in the
+    `X-Webhook-Signature` header.
+
+    ```
+    signature = HMAC-SHA256(request_body, WSIM_WEBHOOK_SECRET)
+    ```
+
+    ## Retry Policy
+
+    - **Retries**: 5 attempts with exponential backoff
+    - **Delays**: 1s, 2s, 4s, 8s, 16s
+    - **Non-retryable**: 4xx errors (except 429)
+    - **Retryable**: 5xx errors, network errors, 429 rate limit
+
+servers:
+  development:
+    host: bsim-wsim-backend:3003
+    protocol: http
+    description: Development environment (Docker network)
+    tags:
+      - name: env:development
+  production:
+    host: wsim.banksim.ca
+    protocol: https
+    description: Production environment
+    tags:
+      - name: env:production
+
+channels:
+  transferCompleted:
+    address: /api/webhooks/transfersim
+    messages:
+      transferCompleted:
+        $ref: '#/components/messages/TransferCompleted'
+    description: |
+      Webhook endpoint for transfer completion events.
+
+      WSIM should:
+      1. Verify the HMAC-SHA256 signature
+      2. Look up the recipient by `recipientUserId` + `recipientBsimId`
+      3. Send push notification with sender info and amount
+      4. Use `idempotencyKey` for deduplication
+
+operations:
+  sendTransferCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/transferCompleted'
+    summary: Transfer completed notification
+    description: |
+      Sent when a P2P transfer completes successfully (same-bank or cross-bank).
+      Enables push notifications to be sent to the recipient's device.
+    messages:
+      - $ref: '#/components/messages/TransferCompleted'
+
+components:
+  messages:
+    TransferCompleted:
+      name: transfer.completed
+      title: Transfer Completed Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          X-Webhook-Signature:
+            type: string
+            description: HMAC-SHA256 signature of the request body
+            example: "sha256=a1b2c3d4e5f6..."
+          Content-Type:
+            type: string
+            const: application/json
+      payload:
+        $ref: '#/components/schemas/TransferCompletedPayload'
+      examples:
+        - name: Individual P2P Transfer
+          summary: Standard peer-to-peer transfer between individuals
+          payload:
+            eventType: transfer.completed
+            timestamp: "2026-01-09T15:30:00.000Z"
+            idempotencyKey: p2p_abc123
+            data:
+              transferId: p2p_abc123
+              recipientUserId: usr_recipient123
+              recipientBsimId: bsim_tangerine
+              recipientAlias: "@alice"
+              recipientAliasType: USERNAME
+              recipientType: individual
+              merchantName: null
+              senderDisplayName: "Bob Smith"
+              senderAlias: "@bob"
+              senderProfileImageUrl: "https://cdn-dev.banksim.ca/users/usr_bob123/avatar_64.jpg"
+              senderBankName: "RBC"
+              recipientBankName: "Tangerine"
+              amount: "50.00"
+              currency: "CAD"
+              description: "Lunch money"
+              isCrossBank: true
+
+        - name: Merchant Payment
+          summary: Payment to a Micro Merchant
+          payload:
+            eventType: transfer.completed
+            timestamp: "2026-01-09T16:00:00.000Z"
+            idempotencyKey: p2p_def456
+            data:
+              transferId: p2p_def456
+              recipientUserId: usr_merchant456
+              recipientBsimId: bsim_tangerine
+              recipientAlias: "@sarahsbakery"
+              recipientAliasType: USERNAME
+              recipientType: merchant
+              merchantName: "Sarah's Bakery"
+              senderDisplayName: "Bob Smith"
+              senderAlias: "@bob"
+              senderProfileImageUrl: null
+              senderBankName: "Tangerine"
+              recipientBankName: "Tangerine"
+              amount: "25.00"
+              currency: "CAD"
+              description: "Coffee and croissant"
+              isCrossBank: false
+
+  schemas:
+    TransferCompletedPayload:
+      type: object
+      required:
+        - eventType
+        - timestamp
+        - idempotencyKey
+        - data
+      properties:
+        eventType:
+          type: string
+          const: transfer.completed
+          description: Event type identifier
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when the event was generated
+        idempotencyKey:
+          type: string
+          description: Unique key for deduplication (same as transferId)
+          example: p2p_abc123
+        data:
+          $ref: '#/components/schemas/TransferCompletedData'
+
+    TransferCompletedData:
+      type: object
+      required:
+        - transferId
+        - recipientUserId
+        - recipientBsimId
+        - recipientAlias
+        - recipientAliasType
+        - recipientType
+        - senderDisplayName
+        - senderBankName
+        - recipientBankName
+        - amount
+        - currency
+        - isCrossBank
+      properties:
+        transferId:
+          type: string
+          description: Unique transfer identifier
+          example: p2p_abc123
+        recipientUserId:
+          type: string
+          description: Recipient's user ID at their BSIM (fiUserRef)
+          example: usr_recipient123
+        recipientBsimId:
+          type: string
+          description: Recipient's bank identifier
+          example: bsim_tangerine
+        recipientAlias:
+          type: string
+          description: Alias used for this transfer
+          example: "@alice"
+        recipientAliasType:
+          type: string
+          enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+          description: Type of alias (UPPERCASE)
+        recipientType:
+          type: string
+          enum: [individual, merchant]
+          description: Recipient category (lowercase)
+        merchantName:
+          type: string
+          nullable: true
+          description: Business name (only when recipientType is "merchant")
+        senderDisplayName:
+          type: string
+          description: Sender's display name for notification
+          example: "Bob Smith"
+        senderAlias:
+          type: string
+          nullable: true
+          description: Sender's primary alias (may be null)
+          example: "@bob"
+        senderProfileImageUrl:
+          type: string
+          nullable: true
+          description: CloudFront URL to sender's profile image (64px thumbnail)
+          example: "https://cdn-dev.banksim.ca/users/usr_bob123/avatar_64.jpg"
+        senderBankName:
+          type: string
+          description: Sender's bank display name
+          example: "RBC"
+        recipientBankName:
+          type: string
+          description: Recipient's bank display name
+          example: "Tangerine"
+        amount:
+          type: string
+          description: Transfer amount as decimal string
+          example: "50.00"
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: "CAD"
+        description:
+          type: string
+          nullable: true
+          description: Optional transfer memo from sender
+        isCrossBank:
+          type: boolean
+          description: Whether sender and recipient are at different banks

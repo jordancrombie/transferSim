@@ -1,0 +1,653 @@
+openapi: 3.1.0
+info:
+  title: TransferSim API
+  description: |
+    P2P Transfer Network API for the BSIM ecosystem.
+
+    TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
+    with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
+  version: 0.8.1
+  contact:
+    name: TransferSim Team
+
+servers:
+  - url: https://transfersim-dev.banksim.ca
+    description: Development environment
+  - url: https://transfer.banksim.ca
+    description: Production environment
+
+tags:
+  - name: Transfers
+    description: P2P transfer operations
+  - name: Tokens
+    description: QR/NFC token generation and resolution
+  - name: Micro-Merchants
+    description: Micro Merchant registration and dashboard
+  - name: Aliases
+    description: Alias lookup for recipient resolution
+  - name: Health
+    description: Service health checks
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns service health status and version
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: 0.8.1
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/v1/transfers:
+    get:
+      tags: [Transfers]
+      summary: Get transfer history
+      description: Returns transfer history for the authenticated user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: direction
+          in: query
+          description: Filter by transfer direction
+          schema:
+            type: string
+            enum: [sent, received]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Transfer list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transfers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transfer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Transfers]
+      summary: Initiate a P2P transfer
+      description: |
+        Creates a new P2P transfer to the specified recipient alias.
+        The transfer is processed asynchronously.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+      responses:
+        '201':
+          description: Transfer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferCreatedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/tokens/receive:
+    post:
+      tags: [Tokens]
+      summary: Generate a receive token (QR code)
+      description: |
+        Creates a token for receiving payments via QR code or NFC.
+        Returns a Universal Link URL for the QR payload.
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: string
+                  description: Pre-set amount (optional)
+                  example: "25.00"
+                currency:
+                  type: string
+                  default: CAD
+                description:
+                  type: string
+                  maxLength: 100
+      responses:
+        '201':
+          description: Token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiveTokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/tokens/{tokenId}:
+    get:
+      tags: [Tokens]
+      summary: Resolve a token
+      description: |
+        Resolves a token scanned from a QR code or NFC tag.
+        Returns recipient details for payment confirmation.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^tok_[a-zA-Z0-9]+$'
+      responses:
+        '200':
+          description: Token resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResolveResponse'
+        '404':
+          description: Token not found or expired
+
+  /api/v1/aliases/lookup:
+    get:
+      tags: [Aliases]
+      summary: Look up recipient by alias
+      description: Resolves an alias (email, phone, username) to recipient info
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: alias
+          in: query
+          required: true
+          description: The alias to look up
+          schema:
+            type: string
+          examples:
+            email:
+              value: "user@example.com"
+            phone:
+              value: "+14165551234"
+            username:
+              value: "@johndoe"
+      responses:
+        '200':
+          description: Alias found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AliasLookupResponse'
+        '404':
+          description: Alias not found
+
+  /api/v1/micro-merchants:
+    post:
+      tags: [Micro-Merchants]
+      summary: Register as a Micro Merchant
+      description: Registers the authenticated user as a Micro Merchant
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMerchantRequest'
+      responses:
+        '201':
+          description: Merchant registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantProfile'
+        '409':
+          description: User is already a Micro Merchant
+
+  /api/v1/micro-merchants/me:
+    get:
+      tags: [Micro-Merchants]
+      summary: Get merchant profile
+      description: Returns the authenticated user's Micro Merchant profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Merchant profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantProfile'
+        '404':
+          description: User is not a Micro Merchant
+
+  /api/v1/micro-merchants/me/dashboard:
+    get:
+      tags: [Micro-Merchants]
+      summary: Get merchant dashboard
+      description: Returns dashboard metrics and recent transactions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tzOffset
+          in: query
+          description: Client timezone offset in minutes (from JavaScript getTimezoneOffset())
+          schema:
+            type: integer
+            example: 300
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantDashboard'
+
+  /api/v1/micro-merchants/me/transactions:
+    get:
+      tags: [Micro-Merchants]
+      summary: Get merchant transactions
+      description: Returns paginated transaction history for the merchant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantTransactionList'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Bearer token format: `<bsimUserId>:<bsimId>`
+
+        Example: `usr_abc123:bsim_tangerine`
+
+        In production, this will be replaced with JWT validation.
+
+  schemas:
+    Transfer:
+      type: object
+      properties:
+        transferId:
+          type: string
+          example: p2p_abc123
+        status:
+          type: string
+          enum: [PENDING, RESOLVING, DEBITING, CREDITING, COMPLETED, FAILED, CANCELLED]
+        amount:
+          type: string
+          example: "50.00"
+        currency:
+          type: string
+          example: CAD
+        description:
+          type: string
+          nullable: true
+        recipientAlias:
+          type: string
+          example: "@jane"
+        recipientAliasType:
+          type: string
+          enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+        direction:
+          type: string
+          enum: [sent, received]
+        senderProfileImageUrl:
+          type: string
+          nullable: true
+          description: Sender's profile image URL (captured at transfer completion)
+        recipientProfileImageUrl:
+          type: string
+          nullable: true
+          description: Recipient's profile image URL
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateTransferRequest:
+      type: object
+      required:
+        - recipientAlias
+        - amount
+        - senderAccountId
+      properties:
+        recipientAlias:
+          type: string
+          description: Recipient's alias (email, phone, username, or random key)
+          example: "@jane"
+        recipientAliasType:
+          type: string
+          enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+          description: Optional - auto-detected if not provided
+        amount:
+          type: string
+          description: Transfer amount as decimal string
+          example: "50.00"
+        currency:
+          type: string
+          default: CAD
+        description:
+          type: string
+          maxLength: 100
+        senderAccountId:
+          type: string
+          description: Source account ID at sender's bank
+        senderBsimId:
+          type: string
+          description: Optional - for multi-bank users
+
+    TransferCreatedResponse:
+      type: object
+      properties:
+        transferId:
+          type: string
+          example: p2p_abc123
+        status:
+          type: string
+          example: PENDING
+        message:
+          type: string
+
+    ReceiveTokenResponse:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          example: tok_xyz789
+        qrPayload:
+          type: string
+          description: Universal Link URL for QR code
+          example: "https://transfer.banksim.ca/pay/tok_xyz789"
+        qrPayloadLegacy:
+          type: string
+          description: JSON format for backward compatibility
+        expiresAt:
+          type: string
+          format: date-time
+        recipientType:
+          type: string
+          enum: [individual, merchant]
+        merchantName:
+          type: string
+          nullable: true
+
+    TokenResolveResponse:
+      type: object
+      properties:
+        tokenId:
+          type: string
+        type:
+          type: string
+          enum: [RECEIVE, SEND]
+        recipientAlias:
+          type: string
+        recipientAliasType:
+          type: string
+          enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+        recipientBsimId:
+          type: string
+        recipientDisplayName:
+          type: string
+        recipientBankName:
+          type: string
+        recipientType:
+          type: string
+          enum: [individual, merchant]
+        merchantName:
+          type: string
+          nullable: true
+        merchantCategory:
+          type: string
+          nullable: true
+        amount:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    AliasLookupResponse:
+      type: object
+      properties:
+        found:
+          type: boolean
+        alias:
+          type: string
+        aliasType:
+          type: string
+          enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+        displayName:
+          type: string
+        bsimId:
+          type: string
+
+    CreateMerchantRequest:
+      type: object
+      required:
+        - merchantName
+      properties:
+        merchantName:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "Sarah's Bakery"
+        merchantCategory:
+          type: string
+          enum: [RETAIL, FOOD_AND_BEVERAGE, SERVICES, CRAFTS_AND_HANDMADE, DIGITAL_GOODS, OTHER]
+          default: OTHER
+        description:
+          type: string
+          maxLength: 500
+        receivingAliasId:
+          type: string
+        receivingAccountId:
+          type: string
+
+    MerchantProfile:
+      type: object
+      properties:
+        merchantId:
+          type: string
+          example: mm_abc123
+        merchantName:
+          type: string
+        merchantCategory:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        stats:
+          type: object
+          properties:
+            totalReceived:
+              type: string
+              example: "1250.00"
+            totalTransactions:
+              type: integer
+            totalFees:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    MerchantDashboard:
+      type: object
+      properties:
+        merchantId:
+          type: string
+        merchantName:
+          type: string
+        allTime:
+          $ref: '#/components/schemas/MerchantStats'
+        today:
+          $ref: '#/components/schemas/MerchantStats'
+        last7Days:
+          $ref: '#/components/schemas/MerchantStats'
+        last30Days:
+          $ref: '#/components/schemas/MerchantStats'
+        recentTransactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MerchantTransaction'
+
+    MerchantStats:
+      type: object
+      properties:
+        totalReceived:
+          type: string
+          example: "500.00"
+        totalTransactions:
+          type: integer
+        totalFees:
+          type: string
+          example: "2.50"
+
+    MerchantTransaction:
+      type: object
+      properties:
+        transferId:
+          type: string
+        amount:
+          type: string
+        feeAmount:
+          type: string
+        netAmount:
+          type: string
+          description: Amount minus fees
+        currency:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        senderAlias:
+          type: string
+          nullable: true
+        senderBsimId:
+          type: string
+          description: Sender's bank identifier
+        senderBankName:
+          type: string
+          nullable: true
+          description: Sender's bank display name (e.g., "TD Bank")
+        senderAccountLast4:
+          type: string
+          nullable: true
+          description: Last 4 digits of sender's account
+        senderProfileImageUrl:
+          type: string
+          nullable: true
+          description: Sender's profile image URL
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    MerchantTransactionList:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MerchantTransaction'
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+            limit:
+              type: integer
+            offset:
+              type: integer
+            hasMore:
+              type: boolean
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Bad Request
+              message:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Unauthorized
+              message:
+                type: string
