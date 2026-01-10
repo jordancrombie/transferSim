@@ -5,6 +5,23 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Phase 2: Merchant Logos
+
+### Added
+
+- **MicroMerchant Schema** (T-10)
+  - Added `logoImageUrl` - CDN URL for merchant logo
+  - Added `logoImageKey` - S3 key for deletion/replacement
+  - Added `initialsColor` - Background color for initials fallback
+  - Migration: `20260110120000_add_logo_fields_to_micro_merchant`
+
+### Pending
+
+- T-11: S3 bucket creation (`banksim-profiles-tsim-dev`)
+- T-12: CloudFront behavior for `/merchants/*`
+- T-13: Image upload service (Sharp-based)
+- T-14: Logo upload/delete endpoints
+
 ## [0.8.1] - 2026-01-10
 
 ### Added

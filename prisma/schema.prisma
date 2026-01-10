@@ -261,6 +261,11 @@ model MicroMerchant {
   merchantCategory    MerchantCategory @default(OTHER)
   description         String?          // Brief description of business
 
+  // Logo/branding (Phase 2)
+  logoImageUrl        String?          // CDN URL for merchant logo
+  logoImageKey        String?          // S3 key for deletion/replacement
+  initialsColor       String?          // Background color for initials fallback
+
   // Receiving preferences
   receivingAliasId    String?          // Preferred alias for receiving
   receivingAccountId  String?          // Preferred account for deposits
