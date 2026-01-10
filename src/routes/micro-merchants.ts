@@ -366,6 +366,14 @@ microMerchantRoutes.get('/me/dashboard', requireAuth, async (req: Request, res: 
       _count: true,
     });
 
+    // Get unique sender bank IDs to look up bank names for recent transactions
+    const senderBsimIds = [...new Set(recentTransactions.map(t => t.senderBsimId))];
+    const bsimConnections = await prisma.bsimConnection.findMany({
+      where: { bsimId: { in: senderBsimIds } },
+      select: { bsimId: true, name: true },
+    });
+    const bankNameMap = new Map(bsimConnections.map(b => [b.bsimId, b.name]));
+
     res.json({
       merchantId: merchant.merchantId,
       merchantName: merchant.merchantName,
@@ -395,6 +403,11 @@ microMerchantRoutes.get('/me/dashboard', requireAuth, async (req: Request, res: 
         feeAmount: t.feeAmount?.toString() || '0',
         currency: t.currency,
         description: t.description,
+        senderAlias: t.senderAlias,
+        senderBsimId: t.senderBsimId,
+        senderBankName: bankNameMap.get(t.senderBsimId) || null,
+        senderAccountLast4: t.senderAccountId ? t.senderAccountId.slice(-4) : null,
+        senderProfileImageUrl: t.senderProfileImageUrl,
         completedAt: t.completedAt,
       })),
     });
@@ -451,6 +464,14 @@ microMerchantRoutes.get('/me/transactions', requireAuth, async (req: Request, re
       }),
     ]);
 
+    // Get unique sender bank IDs to look up bank names
+    const senderBsimIds = [...new Set(transactions.map(t => t.senderBsimId))];
+    const bsimConnections = await prisma.bsimConnection.findMany({
+      where: { bsimId: { in: senderBsimIds } },
+      select: { bsimId: true, name: true },
+    });
+    const bankNameMap = new Map(bsimConnections.map(b => [b.bsimId, b.name]));
+
     res.json({
       transactions: transactions.map(t => ({
         transferId: t.transferId,
@@ -463,6 +484,10 @@ microMerchantRoutes.get('/me/transactions', requireAuth, async (req: Request, re
         description: t.description,
         status: t.status,
         senderAlias: t.senderAlias,
+        senderBsimId: t.senderBsimId,
+        senderBankName: bankNameMap.get(t.senderBsimId) || null,
+        senderAccountLast4: t.senderAccountId ? t.senderAccountId.slice(-4) : null,
+        senderProfileImageUrl: t.senderProfileImageUrl,
         createdAt: t.createdAt,
         completedAt: t.completedAt,
       })),

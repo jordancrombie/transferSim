@@ -5,6 +5,19 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-01-10
+
+### Added
+
+- **Sender Details in Merchant Transactions API**
+  - `GET /api/v1/micro-merchants/me/transactions` now returns sender bank info:
+    - `senderBsimId` - Sender's bank identifier
+    - `senderBankName` - Sender's bank display name (e.g., "TD Bank", "RBC")
+    - `senderAccountLast4` - Last 4 digits of sender's account (for transaction reconciliation)
+    - `senderProfileImageUrl` - Sender's profile image (from v0.8.0)
+  - Dashboard `recentTransactions` also includes these fields
+  - Enables merchants to distinguish transactions for reconciliation
+
 ## [0.8.0] - 2026-01-09
 
 ### Added
