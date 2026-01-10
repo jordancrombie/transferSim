@@ -6,6 +6,8 @@ import { normalizeAlias, validateAliasFormat } from '../utils/normalize.js';
 import { generateRandomKey } from '../utils/id.js';
 import { AliasType } from '@prisma/client';
 import { BsimClient } from '../services/bsimClient.js';
+import { WsimClient } from '../services/wsimClient.js';
+import { generateInitialsColor } from '../services/imageService.js';
 
 export const aliasRoutes = Router();
 
@@ -217,12 +219,43 @@ aliasRoutes.get('/lookup', requireAuth, async (req: Request, res: Response) => {
       }
     }
 
+    // Fetch profile image from WSIM
+    let profileImageUrl: string | null = null;
+    const wsimClient = WsimClient.create();
+    if (wsimClient) {
+      const profileResult = await wsimClient.getProfile(alias.userId, alias.bsimId);
+      if (profileResult.profileImageUrl) {
+        profileImageUrl = profileResult.profileImageUrl;
+      }
+    }
+
+    // Check if recipient is a Micro Merchant
+    const merchant = await prisma.microMerchant.findUnique({
+      where: {
+        userId_bsimId: {
+          userId: alias.userId,
+          bsimId: alias.bsimId,
+        },
+      },
+    });
+
+    const isMerchant = merchant?.isActive || false;
+    const merchantLogoUrl = isMerchant && merchant?.logoImageUrl ? merchant.logoImageUrl : null;
+
+    // Generate initials color - use merchant's color if available, otherwise generate from user ID
+    const initialsColor = isMerchant && merchant?.initialsColor
+      ? merchant.initialsColor
+      : generateInitialsColor(`${alias.bsimId}:${alias.userId}`);
+
     res.json({
       found: true,
       aliasType: alias.type,
       displayName: displayName || 'Unknown',
       bankName: bsimConnection?.name || 'Unknown Bank',
-      // Don't expose userId, accountId, or full details
+      profileImageUrl,
+      initialsColor,
+      isMerchant,
+      merchantLogoUrl,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

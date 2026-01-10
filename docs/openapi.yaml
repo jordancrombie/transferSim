@@ -6,7 +6,7 @@ info:
 
     TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
     with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
-  version: 0.8.1
+  version: 0.8.2
   contact:
     name: TransferSim Team
 
@@ -464,15 +464,41 @@ components:
       properties:
         found:
           type: boolean
-        alias:
-          type: string
+          description: Whether the alias was found
         aliasType:
           type: string
           enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+          description: Type of alias that was matched
         displayName:
           type: string
-        bsimId:
+          description: Recipient's display name (masked for privacy)
+        bankName:
           type: string
+          description: Name of recipient's bank
+        profileImageUrl:
+          type: string
+          nullable: true
+          description: CDN URL for recipient's personal profile image (from WSIM)
+        initialsColor:
+          type: string
+          description: Hex color for initials avatar fallback (e.g., "#3949AB")
+          example: "#3949AB"
+        isMerchant:
+          type: boolean
+          description: Whether the recipient is a registered Micro Merchant
+        merchantLogoUrl:
+          type: string
+          nullable: true
+          description: CDN URL for merchant logo (only if isMerchant is true)
+      example:
+        found: true
+        aliasType: EMAIL
+        displayName: "John D."
+        bankName: "Demo Bank"
+        profileImageUrl: "https://cdn-dev.banksim.ca/users/abc123/avatar.jpg?v=1736520000"
+        initialsColor: "#3949AB"
+        isMerchant: false
+        merchantLogoUrl: null
 
     CreateMerchantRequest:
       type: object

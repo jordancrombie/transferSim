@@ -45,6 +45,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - T-16: Update token resolution to include logo URL
 - T-17: Capture merchant logo in transfer creation
 
+## [0.8.2] - 2026-01-10
+
+### Added
+
+- **Profile Images in Alias Lookup API**
+  - `GET /api/v1/aliases/lookup` now returns profile image fields:
+    - `profileImageUrl` - CDN URL for recipient's personal profile image (from WSIM)
+    - `initialsColor` - Hex color for initials avatar fallback (e.g., `#3949AB`)
+    - `isMerchant` - Whether the recipient is a registered Micro Merchant
+    - `merchantLogoUrl` - CDN URL for merchant logo (if recipient is a merchant)
+  - Enables mwsim to display recipient avatar on payment confirmation screen
+  - Uses existing WSIM internal API for personal profile lookup
+  - Falls back to initials with deterministic color if no image available
+
 ## [0.8.1] - 2026-01-10
 
 ### Added
