@@ -1,12 +1,52 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { Decimal } from '@prisma/client/runtime/library';
+import multer from 'multer';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { generateMerchantId } from '../utils/id.js';
 import { MerchantCategory } from '@prisma/client';
+import {
+  validateImage,
+  uploadMerchantLogo,
+  deleteFromS3,
+  generateInitialsColor,
+} from '../services/imageService.js';
 
 export const microMerchantRoutes = Router();
+
+// Multer configuration for file uploads (memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB
+    files: 1,
+  },
+});
+
+// Simple in-memory rate limiting for logo uploads
+// Rate limit: 5 uploads per merchant per hour
+const logoUploadRateLimit = new Map<string, { count: number; resetAt: number }>();
+const LOGO_UPLOAD_LIMIT = 5;
+const LOGO_UPLOAD_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function checkLogoUploadRateLimit(merchantId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const record = logoUploadRateLimit.get(merchantId);
+
+  if (!record || now >= record.resetAt) {
+    // Reset or create new record
+    logoUploadRateLimit.set(merchantId, { count: 1, resetAt: now + LOGO_UPLOAD_WINDOW_MS });
+    return { allowed: true };
+  }
+
+  if (record.count >= LOGO_UPLOAD_LIMIT) {
+    return { allowed: false, retryAfter: Math.ceil((record.resetAt - now) / 1000) };
+  }
+
+  record.count++;
+  return { allowed: true };
+}
 
 // Validation schemas
 const createMerchantSchema = z.object({
@@ -147,6 +187,8 @@ microMerchantRoutes.get('/me', requireAuth, async (req: Request, res: Response) 
       receivingAliasId: merchant.receivingAliasId,
       receivingAccountId: merchant.receivingAccountId,
       isActive: merchant.isActive,
+      logoImageUrl: merchant.logoImageUrl,
+      initialsColor: merchant.initialsColor || generateInitialsColor(merchant.merchantId),
       stats: {
         totalReceived: merchant.totalReceived.toString(),
         totalTransactions: merchant.totalTransactions,
@@ -507,6 +549,175 @@ microMerchantRoutes.get('/me/transactions', requireAuth, async (req: Request, re
   }
 });
 
+// POST /api/v1/micro-merchants/me/profile/logo - Upload merchant logo
+microMerchantRoutes.post(
+  '/me/profile/logo',
+  requireAuth,
+  upload.single('logo'),
+  async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+
+      // Find merchant
+      const merchant = await prisma.microMerchant.findUnique({
+        where: {
+          userId_bsimId: {
+            userId: user.userId,
+            bsimId: user.bsimId,
+          },
+        },
+      });
+
+      if (!merchant) {
+        res.status(404).json({
+          error: 'Not Found',
+          message: 'User is not registered as a Micro Merchant',
+        });
+        return;
+      }
+
+      // Check rate limit
+      const rateLimit = checkLogoUploadRateLimit(merchant.merchantId);
+      if (!rateLimit.allowed) {
+        res.status(429).json({
+          error: 'Too Many Requests',
+          message: `Rate limit exceeded. Try again in ${rateLimit.retryAfter} seconds.`,
+          retryAfter: rateLimit.retryAfter,
+        });
+        return;
+      }
+
+      // Check if file was provided
+      if (!req.file) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: 'No image file provided. Use field name "logo".',
+        });
+        return;
+      }
+
+      // Validate image
+      const validation = validateImage(req.file.buffer, req.file.mimetype);
+      if (!validation.valid) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: validation.error,
+        });
+        return;
+      }
+
+      console.log(`[Logo] Uploading logo for merchant ${merchant.merchantId}, size=${req.file.size}`);
+
+      // Upload to S3 and get URLs
+      const uploadResult = await uploadMerchantLogo(
+        merchant.merchantId,
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      // Generate initials color (for fallback when logo fails to load)
+      const initialsColor = generateInitialsColor(merchant.merchantId);
+
+      // Update merchant record
+      await prisma.microMerchant.update({
+        where: { merchantId: merchant.merchantId },
+        data: {
+          logoImageUrl: uploadResult.logoImageUrl,
+          logoImageKey: uploadResult.logoImageKey,
+          initialsColor: initialsColor,
+        },
+      });
+
+      console.log(`[Logo] Successfully uploaded logo for merchant ${merchant.merchantId}`);
+
+      res.json({
+        logoImageUrl: uploadResult.logoImageUrl,
+        logoImageKey: uploadResult.logoImageKey,
+        initialsColor: initialsColor,
+        thumbnails: uploadResult.thumbnails,
+      });
+    } catch (error) {
+      console.error('Upload logo error:', error);
+      // Check for multer errors
+      if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          res.status(400).json({
+            error: 'Bad Request',
+            message: 'File size exceeds 5MB limit',
+          });
+          return;
+        }
+      }
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to upload logo',
+      });
+    }
+  }
+);
+
+// DELETE /api/v1/micro-merchants/me/profile/logo - Delete merchant logo
+microMerchantRoutes.delete('/me/profile/logo', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = req.user!;
+
+    // Find merchant
+    const merchant = await prisma.microMerchant.findUnique({
+      where: {
+        userId_bsimId: {
+          userId: user.userId,
+          bsimId: user.bsimId,
+        },
+      },
+    });
+
+    if (!merchant) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'User is not registered as a Micro Merchant',
+      });
+      return;
+    }
+
+    // Check if merchant has a logo
+    if (!merchant.logoImageKey) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Merchant does not have a logo to delete',
+      });
+      return;
+    }
+
+    console.log(`[Logo] Deleting logo for merchant ${merchant.merchantId}`);
+
+    // Delete from S3
+    await deleteFromS3(merchant.merchantId);
+
+    // Clear logo fields in database (keep initialsColor for fallback)
+    await prisma.microMerchant.update({
+      where: { merchantId: merchant.merchantId },
+      data: {
+        logoImageUrl: null,
+        logoImageKey: null,
+      },
+    });
+
+    console.log(`[Logo] Successfully deleted logo for merchant ${merchant.merchantId}`);
+
+    res.json({
+      success: true,
+      message: 'Logo deleted successfully',
+      initialsColor: merchant.initialsColor, // Return for UI fallback
+    });
+  } catch (error) {
+    console.error('Delete logo error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to delete logo',
+    });
+  }
+});
+
 // GET /api/v1/micro-merchants/:merchantId - Public merchant lookup (for QR code scanning)
 microMerchantRoutes.get('/:merchantId', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -530,6 +741,8 @@ microMerchantRoutes.get('/:merchantId', requireAuth, async (req: Request, res: R
       merchantName: merchant.merchantName,
       merchantCategory: merchant.merchantCategory,
       recipientType: 'MICRO_MERCHANT',
+      logoImageUrl: merchant.logoImageUrl,
+      initialsColor: merchant.initialsColor || generateInitialsColor(merchant.merchantId),
     });
   } catch (error) {
     console.error('Get merchant error:', error);

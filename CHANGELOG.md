@@ -15,12 +15,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `initialsColor` - Background color for initials fallback
   - Migration: `20260110120000_add_logo_fields_to_micro_merchant`
 
+- **Image Upload Service** (T-13)
+  - Sharp-based image processing: resize, center-crop, EXIF strip
+  - Outputs 512x512 (primary), 128x128 (medium), 64x64 (small) thumbnails
+  - S3 upload with CDN URL generation
+  - Magic byte validation for JPEG, PNG, HEIC
+  - Deterministic initials color generation
+  - New dependencies: `sharp`, `@aws-sdk/client-s3`
+
+- **Logo Upload/Delete Endpoints** (T-14)
+  - `POST /api/v1/micro-merchants/me/profile/logo` - Upload merchant logo
+    - Accepts multipart/form-data with `logo` field
+    - Validates image format (JPEG, PNG, HEIC) and size (5MB max)
+    - Processes image, uploads to S3, returns CDN URLs
+    - Rate limited: 5 uploads per merchant per hour
+  - `DELETE /api/v1/micro-merchants/me/profile/logo` - Delete merchant logo
+    - Removes all image sizes from S3
+    - Clears logo URL from database
+  - Updated `GET /me` and `GET /:merchantId` to include logo fields
+  - New dependency: `multer` for file uploads
+
+- **Infrastructure** (T-11, T-12)
+  - S3 bucket: `banksim-profiles-tsim-dev` (completed by infra team)
+  - CloudFront behavior for `/merchants/*` path (completed by infra team)
+
 ### Pending
 
-- T-11: S3 bucket creation (`banksim-profiles-tsim-dev`)
-- T-12: CloudFront behavior for `/merchants/*`
-- T-13: Image upload service (Sharp-based)
-- T-14: Logo upload/delete endpoints
+- T-15: Add `recipientProfileImageUrl` to webhook payload
+- T-16: Update token resolution to include logo URL
+- T-17: Capture merchant logo in transfer creation
 
 ## [0.8.1] - 2026-01-10
 

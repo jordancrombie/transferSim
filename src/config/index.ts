@@ -59,4 +59,16 @@ export const config = {
     (process.env.NODE_ENV === 'production'
       ? 'https://transfer.banksim.ca'
       : 'https://transfersim-dev.banksim.ca'),
+
+  // AWS S3 (for merchant logo storage)
+  aws: {
+    region: process.env.AWS_REGION || 'ca-central-1',
+    s3BucketProfiles: process.env.AWS_S3_BUCKET_PROFILES || 'banksim-profiles-tsim-dev',
+  },
+
+  // CDN (CloudFront) for serving images
+  cdnBaseUrl: process.env.CDN_BASE_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://cdn.banksim.ca'
+      : 'https://cdn-dev.banksim.ca'),
 };
