@@ -5,7 +5,7 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - Phase 2: Merchant Logos
+## [0.8.3] - 2026-01-10 - Phase 2: Merchant Logos
 
 ### Added
 
@@ -39,11 +39,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - S3 bucket: `banksim-profiles-tsim-dev` (completed by infra team)
   - CloudFront behavior for `/merchants/*` path (completed by infra team)
 
-### Pending
+- **Recipient Profile Image in Webhook** (T-15)
+  - `transfer.completed` webhook now includes `recipientProfileImageUrl` field
+  - Fetches recipient's profile image URL from WSIM (parallel with sender lookup)
+  - Enables mwsim to display recipient avatar in transaction history
 
-- T-15: Add `recipientProfileImageUrl` to webhook payload
-- T-16: Update token resolution to include logo URL
-- T-17: Capture merchant logo in transfer creation
+- **Token Resolution with Merchant Logo** (T-16)
+  - `GET /api/v1/tokens/:tokenId` now returns merchant logo fields for merchant tokens:
+    - `merchantLogoUrl` - CDN URL for merchant logo
+    - `initialsColor` - Hex color for initials avatar fallback
+  - Enables mwsim to display merchant branding on QR code scan confirmation screen
+
+- **Merchant Logo in Transfer History** (T-17)
+  - Transfers to merchants now store the merchant's logo URL as `recipientProfileImageUrl`
+  - Individual transfers continue to store the WSIM personal profile image
+  - Enables mwsim to show business branding in transaction history for merchant payments
 
 ## [0.8.2] - 2026-01-10
 

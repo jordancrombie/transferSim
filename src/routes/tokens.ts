@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { generateTokenId } from '../utils/id.js';
 import { config } from '../config/index.js';
 import { BsimClient } from '../services/bsimClient.js';
+import { generateInitialsColor } from '../services/imageService.js';
 
 export const tokenRoutes = Router();
 
@@ -310,7 +311,13 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
     }
 
     // Get merchant info if this is a Micro Merchant token
-    let merchantInfo = null;
+    let merchantInfo: {
+      merchantId: string;
+      merchantName: string;
+      merchantCategory: string;
+      logoImageUrl: string | null;
+      initialsColor: string;
+    } | null = null;
     if (token.recipientType === 'MICRO_MERCHANT' && token.microMerchantId) {
       const merchant = await prisma.microMerchant.findUnique({
         where: { merchantId: token.microMerchantId },
@@ -320,6 +327,8 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
           merchantId: merchant.merchantId,
           merchantName: merchant.merchantName,
           merchantCategory: merchant.merchantCategory,
+          logoImageUrl: merchant.logoImageUrl,
+          initialsColor: merchant.initialsColor || generateInitialsColor(merchant.merchantId),
         };
       }
     }
@@ -370,6 +379,8 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       ...(merchantInfo && {
         merchantName: merchantInfo.merchantName,
         merchantCategory: merchantInfo.merchantCategory,
+        merchantLogoUrl: merchantInfo.logoImageUrl,
+        initialsColor: merchantInfo.initialsColor,
       }),
       amount: token.amount?.toString(),
       currency: token.currency,

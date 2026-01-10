@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: TransferSim Webhooks
-  version: 0.7.0
+  version: 0.8.3
   description: |
     Webhook events sent by TransferSim to notify external systems of transfer completions.
 
@@ -101,6 +101,7 @@ components:
               senderDisplayName: "Bob Smith"
               senderAlias: "@bob"
               senderProfileImageUrl: "https://cdn-dev.banksim.ca/users/usr_bob123/avatar_64.jpg"
+              recipientProfileImageUrl: "https://cdn-dev.banksim.ca/users/usr_alice456/avatar_64.jpg"
               senderBankName: "RBC"
               recipientBankName: "Tangerine"
               amount: "50.00"
@@ -125,6 +126,7 @@ components:
               senderDisplayName: "Bob Smith"
               senderAlias: "@bob"
               senderProfileImageUrl: null
+              recipientProfileImageUrl: "https://cdn-dev.banksim.ca/users/usr_sarah789/avatar_64.jpg"
               senderBankName: "Tangerine"
               recipientBankName: "Tangerine"
               amount: "25.00"
@@ -214,6 +216,11 @@ components:
           nullable: true
           description: CloudFront URL to sender's profile image (64px thumbnail)
           example: "https://cdn-dev.banksim.ca/users/usr_bob123/avatar_64.jpg"
+        recipientProfileImageUrl:
+          type: string
+          nullable: true
+          description: CloudFront URL to recipient's profile image (64px thumbnail)
+          example: "https://cdn-dev.banksim.ca/users/usr_alice456/avatar_64.jpg"
         senderBankName:
           type: string
           description: Sender's bank display name

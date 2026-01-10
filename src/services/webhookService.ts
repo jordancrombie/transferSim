@@ -25,7 +25,8 @@ export interface TransferCompletedPayload {
     merchantName: string | null;               // Merchant name if recipientType is 'merchant'
     senderDisplayName: string;
     senderAlias: string | null;
-    senderProfileImageUrl: string | null;  // URL to sender's profile image (from WSIM)
+    senderProfileImageUrl: string | null;      // URL to sender's profile image (from WSIM)
+    recipientProfileImageUrl: string | null;   // URL to recipient's profile image (from WSIM)
     senderBankName: string;
     recipientBankName: string;
     amount: string;               // String to avoid floating point issues
@@ -164,6 +165,7 @@ export function buildTransferCompletedPayload(params: {
   senderDisplayName: string;
   senderAlias: string | null;
   senderProfileImageUrl: string | null;
+  recipientProfileImageUrl: string | null;
   senderBankName: string;
   recipientBankName: string;
   amount: string;
@@ -186,6 +188,7 @@ export function buildTransferCompletedPayload(params: {
       senderDisplayName: params.senderDisplayName,
       senderAlias: params.senderAlias,
       senderProfileImageUrl: params.senderProfileImageUrl,
+      recipientProfileImageUrl: params.recipientProfileImageUrl,
       senderBankName: params.senderBankName,
       recipientBankName: params.recipientBankName,
       amount: params.amount,

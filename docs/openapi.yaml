@@ -6,7 +6,7 @@ info:
 
     TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
     with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
-  version: 0.8.2
+  version: 0.8.3
   contact:
     name: TransferSim Team
 
@@ -299,6 +299,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/MerchantTransactionList'
 
+  /api/v1/micro-merchants/me/profile/logo:
+    post:
+      tags: [Micro-Merchants]
+      summary: Upload merchant logo
+      description: |
+        Upload a new logo for the merchant. Accepts JPEG, PNG, or HEIC images up to 5MB.
+        The image is processed to create multiple sizes (512x512, 128x128, 64x64).
+        Rate limited to 5 uploads per hour per merchant.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - logo
+              properties:
+                logo:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, or HEIC, max 5MB)
+      responses:
+        '200':
+          description: Logo uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoUploadResponse'
+        '400':
+          description: Invalid image format or size
+        '404':
+          description: User is not a registered merchant
+        '429':
+          description: Rate limit exceeded
+    delete:
+      tags: [Micro-Merchants]
+      summary: Delete merchant logo
+      description: Removes the merchant's logo from S3 and clears the logo URL from the database
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logo deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  initialsColor:
+                    type: string
+                    description: Hex color for initials avatar fallback
+        '404':
+          description: Merchant not found or no logo to delete
+
 components:
   securitySchemes:
     BearerAuth:
@@ -447,9 +507,20 @@ components:
         merchantName:
           type: string
           nullable: true
+          description: Business name (only when recipientType is "merchant")
         merchantCategory:
           type: string
           nullable: true
+          description: Merchant category code (only when recipientType is "merchant")
+        merchantLogoUrl:
+          type: string
+          nullable: true
+          description: CDN URL for merchant logo (only when recipientType is "merchant")
+        initialsColor:
+          type: string
+          nullable: true
+          description: Hex color for initials avatar fallback (only when recipientType is "merchant")
+          example: "#43A047"
         amount:
           type: string
           nullable: true
@@ -537,6 +608,14 @@ components:
           nullable: true
         isActive:
           type: boolean
+        logoImageUrl:
+          type: string
+          nullable: true
+          description: CDN URL for merchant logo
+        initialsColor:
+          type: string
+          description: Hex color for initials avatar fallback
+          example: "#43A047"
         stats:
           type: object
           properties:
@@ -550,6 +629,30 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    LogoUploadResponse:
+      type: object
+      properties:
+        logoImageUrl:
+          type: string
+          description: CDN URL for the primary logo image (512x512)
+          example: "https://cdn-dev.banksim.ca/merchants/mm_abc123/logo.jpg?v=1736520000"
+        logoImageKey:
+          type: string
+          description: S3 key for the uploaded image
+        initialsColor:
+          type: string
+          description: Hex color for initials avatar fallback
+          example: "#43A047"
+        thumbnails:
+          type: object
+          properties:
+            medium:
+              type: string
+              description: Medium thumbnail URL (128x128)
+            small:
+              type: string
+              description: Small thumbnail URL (64x64)
 
     MerchantDashboard:
       type: object

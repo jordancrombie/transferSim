@@ -45,13 +45,21 @@ async function sendTransferCompletedNotification(params: {
       }
     }
 
-    // Fetch sender's profile image URL from WSIM
+    // Fetch profile images from WSIM (sender and recipient)
     let senderProfileImageUrl: string | null = null;
+    let recipientProfileImageUrl: string | null = null;
     const wsimClient = WsimClient.create();
     if (wsimClient) {
-      const profileResult = await wsimClient.getProfile(params.senderUserId, params.senderBsimId);
-      if (profileResult.profileImageUrl) {
-        senderProfileImageUrl = profileResult.profileImageUrl;
+      // Fetch both in parallel
+      const [senderProfile, recipientProfile] = await Promise.all([
+        wsimClient.getProfile(params.senderUserId, params.senderBsimId),
+        wsimClient.getProfile(params.recipientUserId, params.recipientBsimId),
+      ]);
+      if (senderProfile.profileImageUrl) {
+        senderProfileImageUrl = senderProfile.profileImageUrl;
+      }
+      if (recipientProfile.profileImageUrl) {
+        recipientProfileImageUrl = recipientProfile.profileImageUrl;
       }
     }
 
@@ -97,6 +105,7 @@ async function sendTransferCompletedNotification(params: {
       senderDisplayName,
       senderAlias: senderAlias?.value || null,
       senderProfileImageUrl,
+      recipientProfileImageUrl,
       senderBankName: senderBank?.name || 'Unknown Bank',
       recipientBankName: recipientBank?.name || 'Unknown Bank',
       amount: params.amount,
@@ -649,17 +658,33 @@ async function executeSameBankTransfer(
     return;
   }
 
+  // Get the full transfer record to check recipient type
+  const fullTransfer = await prisma.transfer.findUnique({
+    where: { id: transferId },
+    select: { recipientType: true, microMerchantId: true },
+  });
+
   // Fetch profile images for both sender and recipient (for history display)
+  // For merchants, use the merchant logo instead of personal profile image
   let senderProfileImageUrl: string | null = null;
   let recipientProfileImageUrl: string | null = null;
   const wsimClient = WsimClient.create();
   if (wsimClient) {
-    const [senderProfile, recipientProfile] = await Promise.all([
-      wsimClient.getProfile(transfer.senderUserId, transfer.senderBsimId),
-      wsimClient.getProfile(recipientAlias.userId, recipientAlias.bsimId),
-    ]);
+    // Always fetch sender profile from WSIM
+    const senderProfile = await wsimClient.getProfile(transfer.senderUserId, transfer.senderBsimId);
     senderProfileImageUrl = senderProfile.profileImageUrl || null;
-    recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
+
+    // For merchants, use the merchant logo; for individuals, use WSIM profile
+    if (fullTransfer?.recipientType === 'MICRO_MERCHANT' && fullTransfer.microMerchantId) {
+      const merchant = await prisma.microMerchant.findUnique({
+        where: { merchantId: fullTransfer.microMerchantId },
+        select: { logoImageUrl: true },
+      });
+      recipientProfileImageUrl = merchant?.logoImageUrl || null;
+    } else {
+      const recipientProfile = await wsimClient.getProfile(recipientAlias.userId, recipientAlias.bsimId);
+      recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
+    }
   }
 
   // Transfer complete
@@ -831,17 +856,33 @@ async function executeCrossBankTransfer(
     return;
   }
 
+  // Get the full transfer record to check recipient type
+  const fullTransfer = await prisma.transfer.findUnique({
+    where: { id: transferId },
+    select: { recipientType: true, microMerchantId: true },
+  });
+
   // Fetch profile images for both sender and recipient (for history display)
+  // For merchants, use the merchant logo instead of personal profile image
   let senderProfileImageUrl: string | null = null;
   let recipientProfileImageUrl: string | null = null;
   const wsimClient = WsimClient.create();
   if (wsimClient) {
-    const [senderProfile, recipientProfile] = await Promise.all([
-      wsimClient.getProfile(transfer.senderUserId, transfer.senderBsimId),
-      wsimClient.getProfile(recipientAlias.userId, recipientAlias.bsimId),
-    ]);
+    // Always fetch sender profile from WSIM
+    const senderProfile = await wsimClient.getProfile(transfer.senderUserId, transfer.senderBsimId);
     senderProfileImageUrl = senderProfile.profileImageUrl || null;
-    recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
+
+    // For merchants, use the merchant logo; for individuals, use WSIM profile
+    if (fullTransfer?.recipientType === 'MICRO_MERCHANT' && fullTransfer.microMerchantId) {
+      const merchant = await prisma.microMerchant.findUnique({
+        where: { merchantId: fullTransfer.microMerchantId },
+        select: { logoImageUrl: true },
+      });
+      recipientProfileImageUrl = merchant?.logoImageUrl || null;
+    } else {
+      const recipientProfile = await wsimClient.getProfile(recipientAlias.userId, recipientAlias.bsimId);
+      recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
+    }
   }
 
   // Transfer complete
