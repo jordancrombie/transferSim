@@ -6,7 +6,7 @@ info:
 
     TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
     with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
-  version: 0.8.3
+  version: 0.9.0
   contact:
     name: TransferSim Team
 
@@ -21,6 +21,8 @@ tags:
     description: P2P transfer operations
   - name: Tokens
     description: QR/NFC token generation and resolution
+  - name: Discovery
+    description: BLE proximity-based recipient discovery
   - name: Micro-Merchants
     description: Micro Merchant registration and dashboard
   - name: Aliases
@@ -178,6 +180,113 @@ paths:
                 $ref: '#/components/schemas/TokenResolveResponse'
         '404':
           description: Token not found or expired
+
+  /api/v1/discovery/beacon/register:
+    post:
+      tags: [Discovery]
+      summary: Register a beacon token for BLE broadcasting
+      description: |
+        Creates a new beacon token for BLE proximity discovery.
+        Returns major/minor values for iBeacon advertisement.
+
+        Rate limited to 10 registrations per hour per user.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeaconRegisterRequest'
+      responses:
+        '201':
+          description: Beacon token created
+          headers:
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Remaining requests in current window
+            X-RateLimit-Reset:
+              schema:
+                type: string
+                format: date-time
+              description: When the rate limit resets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeaconRegisterResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds until retry is allowed
+
+  /api/v1/discovery/beacon/lookup:
+    post:
+      tags: [Discovery]
+      summary: Look up beacon tokens
+      description: |
+        Batch lookup of beacon tokens to get recipient info.
+        Supports up to 20 tokens per request.
+
+        Rate limited to 60 lookups per minute per user.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeaconLookupRequest'
+      responses:
+        '200':
+          description: Lookup results
+          headers:
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+            X-RateLimit-Reset:
+              schema:
+                type: string
+                format: date-time
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeaconLookupResponse'
+        '429':
+          description: Rate limit exceeded
+
+  /api/v1/discovery/beacon/{token}:
+    delete:
+      tags: [Discovery]
+      summary: Deregister a beacon token
+      description: |
+        Removes a beacon token when user stops broadcasting.
+        Can only deregister tokens you own.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-F0-9]{8}$'
+          description: The beacon token (8-character hex string)
+      responses:
+        '200':
+          description: Beacon deregistered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '403':
+          description: Not authorized to deregister this beacon
 
   /api/v1/aliases/lookup:
     get:
@@ -653,6 +762,147 @@ components:
             small:
               type: string
               description: Small thumbnail URL (64x64)
+
+    BeaconRegisterRequest:
+      type: object
+      required:
+        - context
+      properties:
+        context:
+          type: string
+          enum: [P2P_RECEIVE, MERCHANT_RECEIVE]
+          description: Discovery context type
+        expiresIn:
+          type: integer
+          minimum: 60
+          maximum: 600
+          default: 300
+          description: Token TTL in seconds
+        metadata:
+          type: object
+          properties:
+            amount:
+              type: number
+              description: Pre-set amount (optional)
+            description:
+              type: string
+              maxLength: 200
+              description: Payment description
+
+    BeaconRegisterResponse:
+      type: object
+      properties:
+        beaconToken:
+          type: string
+          pattern: '^[A-F0-9]{8}$'
+          description: 32-bit token as hex string
+          example: "1A2B3C4D"
+        major:
+          type: integer
+          description: Upper 16 bits for iBeacon
+          example: 6699
+        minor:
+          type: integer
+          description: Lower 16 bits for iBeacon
+          example: 15437
+        expiresAt:
+          type: string
+          format: date-time
+        ttlSeconds:
+          type: integer
+
+    BeaconLookupRequest:
+      type: object
+      required:
+        - tokens
+      properties:
+        tokens:
+          type: array
+          items:
+            type: string
+            pattern: '^[A-F0-9]{8}$'
+          minItems: 1
+          maxItems: 20
+          description: Beacon tokens to look up
+        rssiFilter:
+          type: object
+          properties:
+            minRssi:
+              type: integer
+              minimum: -100
+              maximum: 0
+              description: Minimum RSSI threshold
+
+    BeaconLookupResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BeaconLookupResult'
+        rateLimitRemaining:
+          type: integer
+        rateLimitReset:
+          type: string
+          format: date-time
+
+    BeaconLookupResult:
+      type: object
+      properties:
+        token:
+          type: string
+        found:
+          type: boolean
+        context:
+          type: string
+          enum: [P2P_RECEIVE, MERCHANT_RECEIVE]
+        recipient:
+          $ref: '#/components/schemas/BeaconRecipientInfo'
+        metadata:
+          type: object
+          properties:
+            amount:
+              type: number
+            description:
+              type: string
+
+    BeaconRecipientInfo:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Recipient's display name (personal or merchant)
+          example: "Bob D."
+        bankName:
+          type: string
+          description: Recipient's bank name
+          example: "Demo Bank"
+        profileImageUrl:
+          type: string
+          nullable: true
+          description: Personal profile image URL
+        initialsColor:
+          type: string
+          description: Hex color for initials avatar
+          example: "#3949AB"
+        isMerchant:
+          type: boolean
+        merchantLogoUrl:
+          type: string
+          nullable: true
+          description: Merchant logo URL (if isMerchant)
+        merchantCategory:
+          type: string
+          nullable: true
+          description: Merchant category (if isMerchant)
+        recipientAlias:
+          type: string
+          nullable: true
+          description: Alias for fallback transfer flow
+        aliasType:
+          type: string
+          enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+          nullable: true
 
     MerchantDashboard:
       type: object
