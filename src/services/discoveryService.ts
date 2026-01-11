@@ -22,6 +22,9 @@ const RATE_LIMIT_REGISTER_PREFIX = 'rate:beacon:register:';
 const RATE_LIMIT_LOOKUP_PREFIX = 'rate:beacon:lookup:';
 
 // Rate limiting configuration
+// Set DISCOVERY_RATE_LIMIT_DISABLED=true to disable rate limiting (for debugging)
+const RATE_LIMIT_DISABLED = process.env.DISCOVERY_RATE_LIMIT_DISABLED === 'true';
+
 const RATE_LIMITS = {
   register: {
     limit: 10,      // 10 registrations
@@ -146,15 +149,18 @@ export async function registerBeaconToken(params: {
   const { userId, bsimId, context, metadata } = params;
   const ttlSeconds = Math.min(params.expiresIn || DEFAULT_BEACON_TTL_SEC, MAX_BEACON_TTL_SEC);
 
-  // Check rate limit
-  const rateLimitKey = `${RATE_LIMIT_REGISTER_PREFIX}${bsimId}:${userId}`;
-  const rateCheck = await checkRateLimit(rateLimitKey, RATE_LIMITS.register.limit, RATE_LIMITS.register.windowSec);
+  // Check rate limit (can be disabled via DISCOVERY_RATE_LIMIT_DISABLED=true)
+  let rateCheck = { allowed: true, remaining: 999, resetAt: new Date(Date.now() + 3600000) };
+  if (!RATE_LIMIT_DISABLED) {
+    const rateLimitKey = `${RATE_LIMIT_REGISTER_PREFIX}${bsimId}:${userId}`;
+    rateCheck = await checkRateLimit(rateLimitKey, RATE_LIMITS.register.limit, RATE_LIMITS.register.windowSec);
 
-  if (!rateCheck.allowed) {
-    return {
-      error: 'Rate limit exceeded for beacon registration',
-      retryAfter: Math.ceil((rateCheck.resetAt.getTime() - Date.now()) / 1000)
-    };
+    if (!rateCheck.allowed) {
+      return {
+        error: 'Rate limit exceeded for beacon registration',
+        retryAfter: Math.ceil((rateCheck.resetAt.getTime() - Date.now()) / 1000)
+      };
+    }
   }
 
   const redis = getRedisClient();
@@ -242,15 +248,18 @@ export async function lookupBeaconTokens(params: {
     return { error: `Batch size exceeds limit of ${RATE_LIMITS.lookupBatchSize} tokens` };
   }
 
-  // Check rate limit
-  const rateLimitKey = `${RATE_LIMIT_LOOKUP_PREFIX}${bsimId}:${userId}`;
-  const rateCheck = await checkRateLimit(rateLimitKey, RATE_LIMITS.lookup.limit, RATE_LIMITS.lookup.windowSec);
+  // Check rate limit (can be disabled via DISCOVERY_RATE_LIMIT_DISABLED=true)
+  let rateCheck = { allowed: true, remaining: 999, resetAt: new Date(Date.now() + 60000) };
+  if (!RATE_LIMIT_DISABLED) {
+    const rateLimitKey = `${RATE_LIMIT_LOOKUP_PREFIX}${bsimId}:${userId}`;
+    rateCheck = await checkRateLimit(rateLimitKey, RATE_LIMITS.lookup.limit, RATE_LIMITS.lookup.windowSec);
 
-  if (!rateCheck.allowed) {
-    return {
-      error: 'Rate limit exceeded for beacon lookup',
-      retryAfter: Math.ceil((rateCheck.resetAt.getTime() - Date.now()) / 1000)
-    };
+    if (!rateCheck.allowed) {
+      return {
+        error: 'Rate limit exceeded for beacon lookup',
+        retryAfter: Math.ceil((rateCheck.resetAt.getTime() - Date.now()) / 1000)
+      };
+    }
   }
 
   const redis = getRedisClient();
