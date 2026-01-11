@@ -237,6 +237,41 @@ model Token {
   @@map("tokens")
 }
 
+// Discovery beacon context types
+enum BeaconContext {
+  P2P_RECEIVE       // Individual requesting payment
+  MERCHANT_RECEIVE  // Merchant accepting payment
+}
+
+// BLE Discovery beacons for proximity-based recipient discovery
+model DiscoveryBeacon {
+  id            String        @id @default(uuid())
+
+  // Token identification (32-bit split into major/minor for iBeacon)
+  beaconToken   String        @unique @db.VarChar(8)  // Hex representation
+  major         Int           // Upper 16 bits
+  minor         Int           // Lower 16 bits
+
+  // Owner identification (TransferSim composite key)
+  userId        String        @db.VarChar(50)  // BSIM user ID
+  bsimId        String        @db.VarChar(50)  // Bank identifier
+
+  // Context
+  context       BeaconContext
+  metadata      Json?         // Optional context-specific data (amount, description)
+
+  // Lifecycle
+  createdAt     DateTime      @default(now())
+  expiresAt     DateTime
+  consumedAt    DateTime?     // Set when used for transfer
+
+  @@unique([major, minor])
+  @@index([beaconToken])
+  @@index([expiresAt])
+  @@index([userId, bsimId])
+  @@map("discovery_beacons")
+}
+
 // Micro Merchant categories
 enum MerchantCategory {
   RETAIL

@@ -5,6 +5,50 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-01-10 - BLE Proximity Discovery
+
+### Added
+
+- **BLE Proximity Discovery API** (Phase 1 Backend)
+  - New `/api/v1/discovery/beacon/register` endpoint for BLE beacon token registration
+    - Returns major/minor values for iBeacon advertisement
+    - Configurable TTL (60-600 seconds, default 300)
+    - Context types: `P2P_RECEIVE`, `MERCHANT_RECEIVE`
+    - Optional metadata: amount, description
+  - New `/api/v1/discovery/beacon/lookup` endpoint for batch token lookup
+    - Supports up to 20 tokens per request
+    - Returns recipient info: displayName, bankName, profileImageUrl, initialsColor
+    - Includes merchant info for MERCHANT_RECEIVE context
+    - Returns recipientAlias for fallback to standard transfer flow
+  - New `/api/v1/discovery/beacon/{token}` DELETE endpoint for deregistration
+
+- **Redis Integration**
+  - New `src/lib/redis.ts` - Redis client singleton with connection management
+  - Beacon tokens stored in Redis with TTL auto-expiry
+  - Rate limiting via Redis sliding window algorithm
+
+- **Rate Limiting**
+  - Registration: 10 requests per hour per user
+  - Lookup: 60 requests per minute per user
+  - Batch size limit: 20 tokens per lookup request
+  - Returns `X-RateLimit-Remaining` and `X-RateLimit-Reset` headers
+
+- **Discovery Service**
+  - `src/services/discoveryService.ts` - Core beacon token management
+  - CSPRNG-based 32-bit token generation
+  - Automatic collision detection with retry
+  - Profile lookup from BSIM (displayName) and WSIM (profileImageUrl)
+  - Merchant info lookup for MERCHANT_RECEIVE context
+
+- **Database Schema**
+  - New `discovery_beacons` table for audit logging
+  - `BeaconContext` enum: `P2P_RECEIVE`, `MERCHANT_RECEIVE`
+  - Migration: `20260110140000_add_discovery_beacons`
+
+### Dependencies
+
+- Uses existing `ioredis` (already in dependencies)
+
 ## [0.8.3] - 2026-01-10 - Phase 2: Merchant Logos
 
 ### Added
