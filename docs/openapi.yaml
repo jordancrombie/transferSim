@@ -6,7 +6,7 @@ info:
 
     TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
     with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
-  version: 0.9.0
+  version: 0.10.0
   contact:
     name: TransferSim Team
 
@@ -23,12 +23,16 @@ tags:
     description: QR/NFC token generation and resolution
   - name: Discovery
     description: BLE proximity-based recipient discovery
+  - name: Settlements
+    description: ContractSim settlement transfers (service-to-service)
   - name: Micro-Merchants
     description: Micro Merchant registration and dashboard
   - name: Aliases
     description: Alias lookup for recipient resolution
   - name: Health
     description: Service health checks
+  - name: Internal
+    description: Internal service-to-service APIs (not for end-user access)
 
 paths:
   /health:
@@ -288,6 +292,125 @@ paths:
         '403':
           description: Not authorized to deregister this beacon
 
+  /api/v1/settlements:
+    post:
+      tags: [Settlements]
+      summary: Create a settlement transfer
+      description: |
+        Creates a settlement transfer for ContractSim contract payouts.
+        Requires service-to-service authentication via X-API-Key header.
+
+        Idempotency-Key header is required for safe retries.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Unique key for idempotent request handling
+          schema:
+            type: string
+            format: uuid
+          example: "contract_abc123_settlement_1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementRequest'
+      responses:
+        '200':
+          description: Settlement completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementResponse'
+        '202':
+          description: Settlement accepted, processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Invalid or missing API key
+        '409':
+          description: Duplicate settlement (idempotency)
+        '422':
+          description: Settlement failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementResponse'
+
+  /api/v1/settlements/{settlementId}:
+    get:
+      tags: [Settlements]
+      summary: Get settlement status
+      description: Returns the status of a settlement by ID
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: settlementId
+          in: path
+          required: true
+          description: Settlement ID (stl_xxx format)
+          schema:
+            type: string
+          example: "stl_abc123"
+      responses:
+        '200':
+          description: Settlement found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementResponse'
+        '404':
+          description: Settlement not found
+
+  /api/internal/aliases/resolve:
+    post:
+      tags: [Internal]
+      summary: Resolve alias to user details
+      description: |
+        Internal endpoint for service-to-service alias resolution.
+        Used by WSIM for ContractSim counterparty resolution.
+
+        Returns userId, bsimId, and displayName for a verified alias.
+      security:
+        - InternalApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - alias
+              properties:
+                alias:
+                  type: string
+                  description: The alias to resolve
+                  example: "@johndoe"
+                type:
+                  type: string
+                  enum: [EMAIL, PHONE, USERNAME, RANDOM_KEY]
+                  description: Optional - alias type (auto-detected if not provided)
+      responses:
+        '200':
+          description: Alias resolution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalAliasResolveResponse'
+        '400':
+          description: Invalid request body
+        '401':
+          description: Invalid or missing internal API key
+        '503':
+          description: Internal API not configured
+
   /api/v1/aliases/lookup:
     get:
       tags: [Aliases]
@@ -480,6 +603,22 @@ components:
 
         In production, this will be replaced with JWT validation.
 
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Service-to-service API key for internal services (ContractSim).
+        Not for end-user authentication.
+
+    InternalApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+      description: |
+        Internal API key for trusted service-to-service communication (WSIM).
+        Shared secret between TransferSim and WSIM.
+
   schemas:
     Transfer:
       type: object
@@ -638,6 +777,30 @@ components:
         description:
           type: string
           nullable: true
+
+    InternalAliasResolveResponse:
+      type: object
+      properties:
+        found:
+          type: boolean
+          description: Whether the alias was found and verified
+        userId:
+          type: string
+          description: User ID at their bank (only if found)
+          example: "usr_abc123"
+        bsimId:
+          type: string
+          description: Bank identifier (only if found)
+          example: "bsim"
+        displayName:
+          type: string
+          description: User's display name (only if found)
+          example: "John Doe"
+      example:
+        found: true
+        userId: "usr_abc123"
+        bsimId: "bsim"
+        displayName: "John Doe"
 
     AliasLookupResponse:
       type: object
@@ -999,6 +1162,142 @@ components:
               type: integer
             hasMore:
               type: boolean
+
+    SettlementRequest:
+      type: object
+      required:
+        - contract_id
+        - settlement_type
+        - from
+        - to
+        - amount
+      properties:
+        contract_id:
+          type: string
+          description: ContractSim contract ID
+          example: "contract_abc123"
+        settlement_type:
+          type: string
+          enum: [winner_payout, refund, partial, dispute_resolution]
+          description: Type of settlement
+        from:
+          type: object
+          required:
+            - wallet_id
+            - bank_id
+          properties:
+            wallet_id:
+              type: string
+              description: Source wallet ID (loser/escrow)
+              example: "WLLT-ABC123"
+            bank_id:
+              type: string
+              description: Source bank identifier
+              example: "bsim"
+            escrow_id:
+              type: string
+              description: BSIM escrow hold ID (optional)
+        to:
+          type: object
+          required:
+            - wallet_id
+            - bank_id
+          properties:
+            wallet_id:
+              type: string
+              description: Destination wallet ID (winner)
+              example: "WLLT-XYZ789"
+            bank_id:
+              type: string
+              description: Destination bank identifier
+              example: "newbank"
+        amount:
+          type: number
+          description: Settlement amount
+          example: 100.00
+        currency:
+          type: string
+          default: CAD
+        metadata:
+          type: object
+          description: Contract-specific metadata for display/audit
+          properties:
+            contract_title:
+              type: string
+              example: "Superbowl 2026 Bet"
+            original_stake:
+              type: number
+              example: 50.00
+            winnings:
+              type: number
+              example: 50.00
+            loser_display_name:
+              type: string
+              example: "John"
+            winner_display_name:
+              type: string
+              example: "Jane"
+
+    SettlementResponse:
+      type: object
+      properties:
+        settlement_id:
+          type: string
+          description: Settlement ID (stl_xxx format)
+          example: "stl_abc123"
+        transfer_id:
+          type: string
+          nullable: true
+          description: Linked transfer ID (p2p_xxx format)
+          example: "p2p_xyz789"
+        contract_id:
+          type: string
+          description: ContractSim contract ID
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          description: Settlement status
+        settlement_type:
+          type: string
+          enum: [winner_payout, refund, partial, dispute_resolution]
+        amount:
+          type: string
+          description: Settlement amount as string
+          example: "100.00"
+        currency:
+          type: string
+          example: "CAD"
+        from_wallet_id:
+          type: string
+          description: Source wallet ID
+        from_bank_id:
+          type: string
+          description: Source bank identifier
+        to_wallet_id:
+          type: string
+          description: Destination wallet ID
+        to_bank_id:
+          type: string
+          description: Destination bank identifier
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          type: string
+          nullable: true
+          description: Error code if failed
+          example: "CREDIT_FAILED"
+        error_message:
+          type: string
+          nullable: true
+          description: Human-readable error message
 
   responses:
     BadRequest:
