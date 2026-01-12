@@ -12,6 +12,8 @@ import { adminRoutes } from './routes/admin.js';
 import { healthRoutes } from './routes/health.js';
 import { microMerchantRoutes } from './routes/micro-merchants.js';
 import { discoveryRoutes } from './routes/discovery.js';
+import { settlementRoutes } from './routes/settlements.js';
+import { internalRoutes } from './routes/internal.js';
 
 export function createApp(): Express {
   const app = express();
@@ -59,7 +61,9 @@ export function createApp(): Express {
   app.use('/api/v1/enrollments', enrollmentRoutes);
   app.use('/api/v1/micro-merchants', microMerchantRoutes);
   app.use('/api/v1/discovery', discoveryRoutes);
+  app.use('/api/v1/settlements', settlementRoutes);
   app.use('/api/v1/admin', adminRoutes);
+  app.use('/api/internal', internalRoutes);
 
   // 404 handler
   app.use((_req: Request, res: Response) => {

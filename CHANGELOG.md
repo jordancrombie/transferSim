@@ -5,6 +5,50 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-01-11 - ContractSim Settlement Integration
+
+### Added
+
+- **ContractSim Settlement API** (Phase 1)
+  - New `/api/v1/settlements` POST endpoint for contract settlement transfers
+    - Service-to-service authentication via `X-API-Key` header
+    - Idempotency support via `Idempotency-Key` header
+    - Settlement types: `winner_payout`, `refund`, `partial`, `dispute_resolution`
+    - Returns settlement ID, linked transfer ID, and status
+  - New `/api/v1/settlements/:settlementId` GET endpoint for status lookup
+  - Webhook notifications to ContractSim on settlement completion/failure
+
+- **Transfer Type Categorization**
+  - New `TransferType` enum: `P2P`, `MERCHANT`, `REFUND`, `CONTRACT_SETTLEMENT`
+  - Added `transferType` field to Transfer model for categorization
+  - Added `contractId` and `settlementId` fields for contract reference
+
+- **Settlement Service**
+  - `src/routes/settlements.ts` - Settlement endpoint with idempotency
+  - `src/services/settlementWebhookService.ts` - Webhook delivery to ContractSim
+  - Full support for same-bank and cross-bank settlements
+  - Profile image capture for transaction history display
+
+- **Internal Alias Resolution API**
+  - New `/api/internal/aliases/resolve` POST endpoint for service-to-service alias lookup
+    - Authentication via `X-Internal-Api-Key` header (shared secret with WSIM)
+    - Returns `userId`, `bsimId`, `displayName` for verified aliases
+    - Auto-detects alias type (EMAIL, PHONE, USERNAME, RANDOM_KEY)
+  - `src/routes/internal.ts` - Internal service-to-service routes
+  - Used by WSIM for ContractSim counterparty resolution
+
+- **Database Schema**
+  - New `settlements` table for idempotency tracking and audit
+  - `SettlementStatus` enum: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`
+  - Migration: `20260111120000_add_contractsim_settlements`
+
+### Configuration
+
+- New environment variables:
+  - `CONTRACTSIM_API_KEY` - API key for incoming ContractSim requests
+  - `CONTRACTSIM_WEBHOOK_URL` - Webhook URL for settlement notifications
+  - `CONTRACTSIM_WEBHOOK_SECRET` - HMAC secret for webhook signing
+
 ## [0.9.0] - 2026-01-10 - BLE Proximity Discovery
 
 ### Added

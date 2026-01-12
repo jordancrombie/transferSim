@@ -38,6 +38,13 @@ export const config = {
     wsimNotificationSecret: process.env.WSIM_WEBHOOK_SECRET || '',
   },
 
+  // ContractSim integration
+  contractSim: {
+    webhookUrl: process.env.CONTRACTSIM_WEBHOOK_URL || '',
+    webhookSecret: process.env.CONTRACTSIM_WEBHOOK_SECRET || '',
+    apiKey: process.env.CONTRACTSIM_API_KEY || '',  // For authenticating incoming requests
+  },
+
   // WSIM Internal API (for profile image lookup)
   wsim: {
     internalApiUrl: process.env.WSIM_INTERNAL_API_URL || '',

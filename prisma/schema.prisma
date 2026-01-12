@@ -22,6 +22,14 @@ enum RecipientType {
   // MERCHANT       // Reserved for future NSIM integration
 }
 
+// Transfer type for categorization
+enum TransferType {
+  P2P                   // Standard peer-to-peer transfer
+  MERCHANT              // Micro Merchant payment
+  REFUND                // Refund of a previous transfer
+  CONTRACT_SETTLEMENT   // ContractSim settlement payout
+}
+
 // Transfer status lifecycle
 enum TransferStatus {
   PENDING           // Created, awaiting processing
@@ -88,9 +96,16 @@ model Transfer {
   currency            String         @default("CAD")
   description         String?
 
+  // Transfer type categorization
+  transferType        TransferType   @default(P2P)
+
   // Recipient type (Individual P2P or Micro Merchant)
   recipientType       RecipientType  @default(INDIVIDUAL)
   microMerchantId     String?        // Reference to MicroMerchant if recipientType is MICRO_MERCHANT
+
+  // ContractSim settlement reference (for CONTRACT_SETTLEMENT transfers)
+  contractId          String?        // ContractSim contract ID
+  settlementId        String?        // Settlement request ID for linking back
 
   // Fee details (for Micro Merchant payments)
   feeAmount           Decimal?       @db.Decimal(15, 2)
@@ -325,4 +340,61 @@ model MicroMerchant {
   @@index([merchantId])
   @@index([userId, bsimId])
   @@map("micro_merchants")
+}
+
+// Settlement status lifecycle
+enum SettlementStatus {
+  PENDING             // Settlement request received
+  PROCESSING          // Transfer in progress
+  COMPLETED           // Settlement successful
+  FAILED              // Settlement failed
+}
+
+// ContractSim settlement requests - for idempotency and tracking
+model Settlement {
+  id                  String            @id @default(uuid())
+  settlementId        String            @unique  // External ID (stl_xxx)
+
+  // Idempotency
+  idempotencyKey      String            @unique  // From Idempotency-Key header
+
+  // Contract reference
+  contractId          String            // ContractSim contract ID
+
+  // Settlement details
+  settlementType      String            // 'winner_payout', 'refund', 'partial', 'dispute_resolution'
+
+  // Source (loser/escrow)
+  fromWalletId        String            // WSIM wallet ID (e.g., "WLLT-ABC123")
+  fromBsimId          String            // Bank identifier
+  fromEscrowId        String?           // BSIM escrow hold ID
+
+  // Destination (winner)
+  toWalletId          String            // WSIM wallet ID
+  toBsimId            String            // Bank identifier
+
+  // Amount
+  amount              Decimal           @db.Decimal(15, 2)
+  currency            String            @default("CAD")
+
+  // Contract metadata (stored for audit/display)
+  metadata            Json?             // { contractTitle, originalStake, winnings, etc. }
+
+  // Status
+  status              SettlementStatus  @default(PENDING)
+  statusMessage       String?
+  errorCode           String?           // Error code if failed
+
+  // Linked transfer (created when settlement is processed)
+  transferId          String?           // Reference to Transfer record
+
+  // Timestamps
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  completedAt         DateTime?
+
+  @@index([contractId])
+  @@index([status])
+  @@index([idempotencyKey])
+  @@map("settlements")
 }
