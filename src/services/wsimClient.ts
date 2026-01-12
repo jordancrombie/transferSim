@@ -63,11 +63,11 @@ export class WsimClient {
         };
       }
 
-      const data = await response.json() as { profileImageUrl?: string };
-      console.log(`[WsimClient] Profile fetched: profileImageUrl=${data.profileImageUrl ? 'present' : 'absent'}`);
+      const data = await response.json() as { success?: boolean; profile?: { profileImageUrl?: string } };
+      console.log(`[WsimClient] Profile fetched: profileImageUrl=${data.profile?.profileImageUrl ? 'present' : 'absent'}`);
 
       return {
-        profileImageUrl: data.profileImageUrl,
+        profileImageUrl: data.profile?.profileImageUrl,
       };
     } catch (error) {
       console.error('[WsimClient] Profile fetch error:', error);
