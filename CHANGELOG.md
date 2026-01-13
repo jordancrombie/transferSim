@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.10.1] - 2026-01-12
 
+### Added
+
+- **Profile Image in Token Resolution for Individuals**
+  - `GET /api/v1/tokens/:tokenId` now returns `profileImageUrl` for non-merchant recipients
+  - Fetches personal profile image from WSIM for individual recipients
+  - Returns `initialsColor` for avatar fallback
+
 ### Fixed
 
 - **Profile Image Not Showing in Alias Lookup**

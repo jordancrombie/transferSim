@@ -6,6 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { generateTokenId } from '../utils/id.js';
 import { config } from '../config/index.js';
 import { BsimClient } from '../services/bsimClient.js';
+import { WsimClient } from '../services/wsimClient.js';
 import { generateInitialsColor } from '../services/imageService.js';
 
 export const tokenRoutes = Router();
@@ -360,6 +361,21 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
       }
     }
 
+    // Fetch profile image from WSIM for non-merchant recipients
+    let profileImageUrl: string | null = null;
+    let individualInitialsColor: string | null = null;
+    if (!merchantInfo && token.userId && token.bsimId) {
+      const wsimClient = WsimClient.create();
+      if (wsimClient) {
+        const profileResult = await wsimClient.getProfile(token.userId, token.bsimId);
+        if (profileResult.profileImageUrl) {
+          profileImageUrl = profileResult.profileImageUrl;
+        }
+      }
+      // Generate initials color for individuals
+      individualInitialsColor = generateInitialsColor(`${token.bsimId}:${token.userId}`);
+    }
+
     // Debug: Log token data and mapping
     console.log(`[Token] Token found: type=${token.type}, recipientType=${token.recipientType}, microMerchantId=${token.microMerchantId}`);
     console.log(`[Token] recipientType mapping: ${token.recipientType} -> ${recipientTypeForClient}`);
@@ -381,6 +397,11 @@ tokenRoutes.get('/:tokenId', requireAuth, async (req: Request, res: Response) =>
         merchantCategory: merchantInfo.merchantCategory,
         merchantLogoUrl: merchantInfo.logoImageUrl,
         initialsColor: merchantInfo.initialsColor,
+      }),
+      // Individual-specific fields (non-merchant)
+      ...(!merchantInfo && {
+        profileImageUrl,
+        initialsColor: individualInitialsColor,
       }),
       amount: token.amount?.toString(),
       currency: token.currency,

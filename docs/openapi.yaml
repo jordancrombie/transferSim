@@ -764,10 +764,14 @@ components:
           type: string
           nullable: true
           description: CDN URL for merchant logo (only when recipientType is "merchant")
+        profileImageUrl:
+          type: string
+          nullable: true
+          description: CDN URL for personal profile image (only when recipientType is "individual")
         initialsColor:
           type: string
           nullable: true
-          description: Hex color for initials avatar fallback (only when recipientType is "merchant")
+          description: Hex color for initials avatar fallback
           example: "#43A047"
         amount:
           type: string
