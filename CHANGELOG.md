@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed `wsimClient.ts` to correctly parse WSIM's internal profile response
   - WSIM returns `{ success: true, profile: { profileImageUrl: "..." } }`
   - TransferSim was incorrectly expecting `{ profileImageUrl: "..." }` at top level
+  - Fixed duplicate `/api/internal` path in WSIM profile URL construction
   - Profile images now display correctly in P2P send recipient lookup
 
 ## [0.10.0] - 2026-01-11 - ContractSim Settlement Integration

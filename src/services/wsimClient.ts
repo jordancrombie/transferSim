@@ -37,7 +37,7 @@ export class WsimClient {
    * @param bsimId - The BSIM instance ID
    */
   async getProfile(bsimUserId: string, bsimId: string): Promise<WsimProfileResponse> {
-    const url = `${this.baseUrl}/api/internal/profile?bsimUserId=${encodeURIComponent(bsimUserId)}&bsimId=${encodeURIComponent(bsimId)}`;
+    const url = `${this.baseUrl}/profile?bsimUserId=${encodeURIComponent(bsimUserId)}&bsimId=${encodeURIComponent(bsimId)}`;
 
     console.log(`[WsimClient] Fetching profile for bsimUserId=${bsimUserId}, bsimId=${bsimId}`);
 
