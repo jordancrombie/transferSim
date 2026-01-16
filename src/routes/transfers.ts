@@ -10,7 +10,6 @@ import { config } from '../config/index.js';
 import { BsimClient } from '../services/bsimClient.js';
 import { WsimClient } from '../services/wsimClient.js';
 import { sendTransferCompletedWebhook, buildTransferCompletedPayload } from '../services/webhookService.js';
-import { calculateFee } from './micro-merchants.js';
 
 export const transferRoutes = Router();
 
@@ -531,30 +530,16 @@ async function processTransfer(transferId: string): Promise<void> {
     return;
   }
 
-  // Check if recipient is a registered Micro Merchant
-  const merchant = await prisma.microMerchant.findUnique({
-    where: {
-      userId_bsimId: {
-        userId: recipientAlias.userId,
-        bsimId: recipientAlias.bsimId,
-      },
-    },
-  });
-
-  // Calculate fee if this is a merchant payment
-  const isMerchantPayment = merchant && merchant.isActive;
-  const feeAmount = isMerchantPayment ? calculateFee(transfer.amount.toNumber()) : null;
-
-  // Update transfer with recipient info and merchant details
+  // P2P transfers are always INDIVIDUAL, even if recipient has a business profile.
+  // Merchant payments only happen through explicit merchant flows (QR codes, tokens with asMerchant=true).
+  // Update transfer with recipient info
   await prisma.transfer.update({
     where: { id: transferId },
     data: {
       recipientUserId: recipientAlias.userId,
       recipientBsimId: recipientAlias.bsimId,
       recipientAccountId: recipientAlias.accountId,
-      recipientType: isMerchantPayment ? 'MICRO_MERCHANT' : 'INDIVIDUAL',
-      microMerchantId: isMerchantPayment ? merchant.merchantId : null,
-      feeAmount: feeAmount ? new Decimal(feeAmount) : null,
+      recipientType: 'INDIVIDUAL',
       status: 'DEBITING',
     },
   });

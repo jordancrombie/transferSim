@@ -5,7 +5,7 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.1] - 2026-01-12
+## [0.10.2] - 2026-01-16
 
 ### Added
 
@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - TransferSim was incorrectly expecting `{ profileImageUrl: "..." }` at top level
   - Fixed duplicate `/api/internal` path in WSIM profile URL construction
   - Profile images now display correctly in P2P send recipient lookup
+
+- **P2P Transfers Incorrectly Tagged as Merchant Payments**
+  - Fixed bug where P2P transfers to users with business profiles were treated as merchant payments
+  - Removed merchant profile lookup from the alias-based P2P transfer flow
+  - P2P transfers now always have `recipientType: 'individual'`
+  - Merchant payments only occur through explicit merchant flows (QR codes, tokens with `asMerchant=true`)
 
 ## [0.10.0] - 2026-01-11 - ContractSim Settlement Integration
 

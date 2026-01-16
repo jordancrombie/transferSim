@@ -6,7 +6,7 @@ info:
 
     TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
     with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
-  version: 0.10.0
+  version: 0.10.2
   contact:
     name: TransferSim Team
 
