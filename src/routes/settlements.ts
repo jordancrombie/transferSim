@@ -312,61 +312,114 @@ async function processSettlement(settlementId: string): Promise<{
     },
   });
 
-  // Step 1: Debit from source (loser/escrow)
-  const debitResult = await fromBsimClient.debit({
-    userId: fromUserId,
-    accountId: 'default',
-    amount: settlement.amount.toNumber(),
-    currency: settlement.currency,
-    transferId: transfer.id,
-    description: `${description} - Debit`,
-  });
+  // Step 1: Debit from source (loser) or release escrow
+  // If fromEscrowId is set, funds are held in escrow and we use escrow release
+  // Otherwise, do a regular debit from the user's account
+  let debitTransactionId: string | undefined;
 
-  if (!debitResult.success) {
+  if (settlement.fromEscrowId) {
+    // Escrow-based settlement: release escrow and credit winner in one atomic operation
+    console.log(`[Settlement] Using escrow release for escrowId=${settlement.fromEscrowId}`);
+    const escrowResult = await fromBsimClient.escrowRelease({
+      escrowId: settlement.fromEscrowId,
+      recipientUserId: toUserId,
+      recipientBsimId: isSameBank ? undefined : settlement.toBsimId,
+      transferId: transfer.id,
+      description,
+    });
+
+    if (!escrowResult.success) {
+      await prisma.transfer.update({
+        where: { id: transfer.id },
+        data: {
+          status: 'DEBIT_FAILED',
+          statusMessage: escrowResult.error || 'Escrow release failed',
+        },
+      });
+      return await markSettlementFailed(settlementId, 'ESCROW_RELEASE_FAILED', escrowResult.error || 'Escrow release failed', transfer.transferId);
+    }
+
+    // Escrow release handles both debit and credit atomically
+    debitTransactionId = escrowResult.transactionId;
     await prisma.transfer.update({
       where: { id: transfer.id },
       data: {
-        status: 'DEBIT_FAILED',
-        statusMessage: debitResult.error || 'Debit failed',
+        debitTransactionId: escrowResult.transactionId,
+        creditTransactionId: escrowResult.transactionId, // Same transaction for escrow release
+        status: 'COMPLETED',
+        completedAt: new Date(),
       },
     });
-    return await markSettlementFailed(settlementId, 'DEBIT_FAILED', debitResult.error || 'Debit failed', transfer.transferId);
-  }
+  } else {
+    // Regular settlement: debit from user's account, then credit recipient
+    console.log(`[Settlement] Using regular debit/credit flow (no escrow)`);
+    const debitResult = await fromBsimClient.debit({
+      userId: fromUserId,
+      accountId: 'default',
+      amount: settlement.amount.toNumber(),
+      currency: settlement.currency,
+      transferId: transfer.id,
+      description: `${description} - Debit`,
+    });
 
-  // Update transfer with debit transaction ID
-  await prisma.transfer.update({
-    where: { id: transfer.id },
-    data: {
-      debitTransactionId: debitResult.transactionId,
-      status: 'CREDITING',
-    },
-  });
+    if (!debitResult.success) {
+      await prisma.transfer.update({
+        where: { id: transfer.id },
+        data: {
+          status: 'DEBIT_FAILED',
+          statusMessage: debitResult.error || 'Debit failed',
+        },
+      });
+      return await markSettlementFailed(settlementId, 'DEBIT_FAILED', debitResult.error || 'Debit failed', transfer.transferId);
+    }
 
-  // Step 2: Credit to destination (winner)
-  const creditResult = await toBsimClient.credit({
-    userId: toUserId,
-    accountId: undefined, // Use default account
-    amount: settlement.amount.toNumber(),
-    currency: settlement.currency,
-    transferId: transfer.id,
-    description: `${description} - Credit`,
-  });
+    debitTransactionId = debitResult.transactionId;
 
-  if (!creditResult.success) {
-    // Credit failed - need to compensate by reversing debit
-    // For now, mark as failed (saga compensation in Phase 2)
+    // Update transfer with debit transaction ID
     await prisma.transfer.update({
       where: { id: transfer.id },
       data: {
-        status: 'CREDIT_FAILED',
-        statusMessage: creditResult.error || 'Credit failed',
+        debitTransactionId: debitResult.transactionId,
+        status: 'CREDITING',
       },
     });
-    // TODO: Implement debit reversal
-    return await markSettlementFailed(settlementId, 'CREDIT_FAILED', creditResult.error || 'Credit failed (debit may need reversal)', transfer.transferId);
+
+    // Step 2: Credit to destination (winner)
+    const creditResult = await toBsimClient.credit({
+      userId: toUserId,
+      accountId: undefined, // Use default account
+      amount: settlement.amount.toNumber(),
+      currency: settlement.currency,
+      transferId: transfer.id,
+      description: `${description} - Credit`,
+    });
+
+    if (!creditResult.success) {
+      // Credit failed - need to compensate by reversing debit
+      // For now, mark as failed (saga compensation in Phase 2)
+      await prisma.transfer.update({
+        where: { id: transfer.id },
+        data: {
+          status: 'CREDIT_FAILED',
+          statusMessage: creditResult.error || 'Credit failed',
+        },
+      });
+      // TODO: Implement debit reversal
+      return await markSettlementFailed(settlementId, 'CREDIT_FAILED', creditResult.error || 'Credit failed (debit may need reversal)', transfer.transferId);
+    }
+
+    // Mark transfer as completed for non-escrow flow
+    await prisma.transfer.update({
+      where: { id: transfer.id },
+      data: {
+        creditTransactionId: creditResult.transactionId,
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
   }
 
-  // Fetch profile images
+  // Fetch profile images and update transfer
   let senderProfileImageUrl: string | null = null;
   let recipientProfileImageUrl: string | null = null;
   const wsimClient = WsimClient.create();
@@ -379,15 +432,12 @@ async function processSettlement(settlementId: string): Promise<{
     recipientProfileImageUrl = recipientProfile.profileImageUrl || null;
   }
 
-  // Transfer complete
+  // Update transfer with profile images and final status message
   const completedAt = new Date();
   await prisma.transfer.update({
     where: { id: transfer.id },
     data: {
-      status: 'COMPLETED',
       statusMessage: 'Settlement completed successfully',
-      creditTransactionId: creditResult.transactionId,
-      completedAt,
       senderProfileImageUrl,
       recipientProfileImageUrl,
     },

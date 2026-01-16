@@ -36,6 +36,14 @@ interface BsimVerifyUserResponse {
   error?: string;
 }
 
+interface BsimEscrowReleaseRequest {
+  escrowId: string;
+  recipientUserId: string;
+  recipientBsimId?: string;  // For cross-bank releases
+  transferId: string;
+  description?: string;
+}
+
 export class BsimClient {
   private baseUrl: string;
   private apiKey: string;
@@ -192,6 +200,56 @@ export class BsimClient {
       return {
         exists: false,
         error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Release funds from escrow and credit to recipient
+   * Used for ContractSim settlements where funds were pre-escrowed
+   */
+  async escrowRelease(request: BsimEscrowReleaseRequest): Promise<BsimTransactionResponse> {
+    const url = `${this.baseUrl}/api/escrow/${encodeURIComponent(request.escrowId)}/release`;
+
+    console.log(`[BsimClient] Releasing escrow ${request.escrowId} to ${request.recipientUserId}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': this.apiKey,
+        },
+        body: JSON.stringify({
+          recipientUserId: request.recipientUserId,
+          recipientBsimId: request.recipientBsimId,
+          transferId: request.transferId,
+          description: request.description || 'Contract Settlement',
+        }),
+      });
+
+      const data = await response.json() as { transactionId?: string; error?: string; message?: string };
+
+      if (!response.ok) {
+        console.error(`[BsimClient] Escrow release failed: ${data.error || data.message}`);
+        return {
+          success: false,
+          error: data.error || 'Escrow release failed',
+          message: data.message || `HTTP ${response.status}`,
+        };
+      }
+
+      console.log(`[BsimClient] Escrow released successfully, transactionId=${data.transactionId}`);
+      return {
+        success: true,
+        transactionId: data.transactionId,
+      };
+    } catch (error) {
+      console.error('BSIM escrow release error:', error);
+      return {
+        success: false,
+        error: 'Connection failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
