@@ -318,14 +318,14 @@ async function processSettlement(settlementId: string): Promise<{
   let debitTransactionId: string | undefined;
 
   if (settlement.fromEscrowId) {
-    // Escrow-based settlement: release escrow and credit winner in one atomic operation
+    // Escrow-based settlement: release escrow (deduct from loser), then credit winner
+    // NOTE: Escrow release only deducts - we must separately call credit()
     console.log(`[Settlement] Using escrow release for escrowId=${settlement.fromEscrowId}`);
     const escrowResult = await fromBsimClient.escrowRelease({
       escrowId: settlement.fromEscrowId,
-      recipientUserId: toUserId,
-      recipientBsimId: isSameBank ? undefined : settlement.toBsimId,
+      contractId: settlement.contractId,
       transferId: transfer.id,
-      description,
+      reason: description,
     });
 
     if (!escrowResult.success) {
@@ -339,13 +339,46 @@ async function processSettlement(settlementId: string): Promise<{
       return await markSettlementFailed(settlementId, 'ESCROW_RELEASE_FAILED', escrowResult.error || 'Escrow release failed', transfer.transferId);
     }
 
-    // Escrow release handles both debit and credit atomically
     debitTransactionId = escrowResult.transactionId;
+
+    // Update transfer with escrow release transaction ID
     await prisma.transfer.update({
       where: { id: transfer.id },
       data: {
         debitTransactionId: escrowResult.transactionId,
-        creditTransactionId: escrowResult.transactionId, // Same transaction for escrow release
+        status: 'CREDITING',
+      },
+    });
+
+    // Step 2: Credit to destination (winner) - same as non-escrow flow
+    console.log(`[Settlement] Crediting winner ${toUserId} at ${settlement.toBsimId}`);
+    const creditResult = await toBsimClient.credit({
+      userId: toUserId,
+      accountId: undefined, // Use default account
+      amount: settlement.amount.toNumber(),
+      currency: settlement.currency,
+      transferId: transfer.id,
+      description: `${description} - Credit`,
+    });
+
+    if (!creditResult.success) {
+      // Credit failed after escrow release - funds are in limbo
+      // TODO: Implement compensation (return funds to escrow or loser's account)
+      await prisma.transfer.update({
+        where: { id: transfer.id },
+        data: {
+          status: 'CREDIT_FAILED',
+          statusMessage: creditResult.error || 'Credit failed',
+        },
+      });
+      return await markSettlementFailed(settlementId, 'CREDIT_FAILED', creditResult.error || 'Credit failed (escrow released, needs compensation)', transfer.transferId);
+    }
+
+    // Mark transfer as completed
+    await prisma.transfer.update({
+      where: { id: transfer.id },
+      data: {
+        creditTransactionId: creditResult.transactionId,
         status: 'COMPLETED',
         completedAt: new Date(),
       },

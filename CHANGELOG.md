@@ -5,6 +5,25 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.4] - 2026-01-16
+
+### Changed
+
+- **Escrow Settlement Flow Redesign**
+  - Escrow release now correctly follows two-step pattern: release (deduct) → credit
+  - BSIM's `/release` endpoint only deducts from loser's escrow; TransferSim calls `/credit` separately
+  - Updated `BsimClient.escrowRelease()` to send BSIM-expected parameters:
+    - `contract_id` (required)
+    - `reason` (required, defaults to "Contract Settlement")
+    - `transfer_reference` (maps from TransferSim's transferId)
+  - Same pattern as regular settlements, just with escrow release instead of debit
+
+### Fixed
+
+- **Escrow Release Request Parameters**
+  - Fixed request body to match BSIM's expected API contract
+  - Removed incorrect `recipientUserId`/`recipientBsimId` (BSIM doesn't credit on release)
+
 ## [0.10.3] - 2026-01-16
 
 ### Added
@@ -12,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Escrow Release Support for ContractSim Settlements**
   - Added `escrowRelease()` method to BsimClient
   - Settlements with `fromEscrowId` now release funds from escrow instead of regular debit
-  - Escrow release is atomic: releases funds and credits recipient in one BSIM call
   - Supports both same-bank and cross-bank escrow releases
 
 ### Fixed

@@ -38,10 +38,9 @@ interface BsimVerifyUserResponse {
 
 interface BsimEscrowReleaseRequest {
   escrowId: string;
-  recipientUserId: string;
-  recipientBsimId?: string;  // For cross-bank releases
+  contractId: string;         // REQUIRED by BSIM
   transferId: string;
-  description?: string;
+  reason?: string;            // REQUIRED by BSIM (defaults to 'Contract Settlement')
 }
 
 export class BsimClient {
@@ -205,13 +204,14 @@ export class BsimClient {
   }
 
   /**
-   * Release funds from escrow and credit to recipient
-   * Used for ContractSim settlements where funds were pre-escrowed
+   * Release funds from escrow (deduct from loser's escrowed account)
+   * Used for ContractSim settlements where funds were pre-escrowed.
+   * NOTE: This only releases/deducts - TransferSim must separately call credit() to pay the winner.
    */
   async escrowRelease(request: BsimEscrowReleaseRequest): Promise<BsimTransactionResponse> {
     const url = `${this.baseUrl}/api/escrow/${encodeURIComponent(request.escrowId)}/release`;
 
-    console.log(`[BsimClient] Releasing escrow ${request.escrowId} to ${request.recipientUserId}`);
+    console.log(`[BsimClient] Releasing escrow ${request.escrowId} for contract ${request.contractId}`);
 
     try {
       const response = await fetch(url, {
@@ -221,14 +221,13 @@ export class BsimClient {
           'X-API-Key': this.apiKey,
         },
         body: JSON.stringify({
-          recipientUserId: request.recipientUserId,
-          recipientBsimId: request.recipientBsimId,
-          transferId: request.transferId,
-          description: request.description || 'Contract Settlement',
+          contract_id: request.contractId,
+          reason: request.reason || 'Contract Settlement',
+          transfer_reference: request.transferId,
         }),
       });
 
-      const data = await response.json() as { transactionId?: string; error?: string; message?: string };
+      const data = await response.json() as { transactionId?: string; transaction_id?: string; error?: string; message?: string };
 
       if (!response.ok) {
         console.error(`[BsimClient] Escrow release failed: ${data.error || data.message}`);
@@ -239,10 +238,11 @@ export class BsimClient {
         };
       }
 
-      console.log(`[BsimClient] Escrow released successfully, transactionId=${data.transactionId}`);
+      const transactionId = data.transactionId || data.transaction_id;
+      console.log(`[BsimClient] Escrow released successfully, transactionId=${transactionId}`);
       return {
         success: true,
-        transactionId: data.transactionId,
+        transactionId,
       };
     } catch (error) {
       console.error('BSIM escrow release error:', error);
