@@ -6,7 +6,7 @@ info:
 
     TransferSim enables peer-to-peer transfers between users enrolled at different BSIM bank instances,
     with support for Micro Merchant payments, QR/NFC tokens, and alias-based recipient resolution.
-  version: 0.10.4
+  version: 0.10.5
   contact:
     name: TransferSim Team
 
@@ -1189,15 +1189,20 @@ components:
           required:
             - wallet_id
             - bank_id
+            - user_id
           properties:
             wallet_id:
               type: string
-              description: Source wallet ID (loser/escrow)
-              example: "WLLT-ABC123"
+              description: ContractSim wallet ID (for reference/audit)
+              example: "be63dc35-ba84-4cf1-b238-d5ab34d9abcb"
             bank_id:
               type: string
               description: Source bank identifier
               example: "bsim"
+            user_id:
+              type: string
+              description: BSIM user ID (required for debit/escrow release)
+              example: "625e155d-4aca-4c42-ba28-593c1977f028"
             escrow_id:
               type: string
               description: BSIM escrow hold ID (optional)
@@ -1206,15 +1211,20 @@ components:
           required:
             - wallet_id
             - bank_id
+            - user_id
           properties:
             wallet_id:
               type: string
-              description: Destination wallet ID (winner)
-              example: "WLLT-XYZ789"
+              description: ContractSim wallet ID (for reference/audit)
+              example: "7c6fcb33-647c-41f3-bab0-59ae149aab3d"
             bank_id:
               type: string
               description: Destination bank identifier
-              example: "newbank"
+              example: "bsim"
+            user_id:
+              type: string
+              description: BSIM user ID (required for credit)
+              example: "c928ee5e-9167-4340-8595-0f23020691f6"
         amount:
           type: number
           description: Settlement amount

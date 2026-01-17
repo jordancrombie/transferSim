@@ -5,6 +5,29 @@ All notable changes to TransferSim will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.5] - 2026-01-17
+
+### Changed
+
+- **Settlement API: Added Required `user_id` Field** (BREAKING CHANGE)
+  - Settlement requests now require `user_id` in both `from` and `to` objects
+  - `user_id` is the BSIM user ID, distinct from the ContractSim `wallet_id`
+  - TransferSim uses `user_id` for BSIM debit/credit operations
+  - `wallet_id` is retained for ContractSim's reference/audit purposes
+
+### Fixed
+
+- **CREDIT_FAILED - USER_NOT_FOUND on Settlements**
+  - Fixed bug where TransferSim passed ContractSim walletId to BSIM credit endpoint
+  - BSIM requires the actual BSIM user ID, not the ContractSim wallet ID
+  - Settlement requests must now include the BSIM user ID for both parties
+
+### Database
+
+- Migration `20260117120000_add_settlement_user_ids`:
+  - Added `fromUserId` column to settlements table
+  - Added `toUserId` column to settlements table
+
 ## [0.10.4] - 2026-01-16
 
 ### Changed

@@ -365,13 +365,15 @@ model Settlement {
   settlementType      String            // 'winner_payout', 'refund', 'partial', 'dispute_resolution'
 
   // Source (loser/escrow)
-  fromWalletId        String            // WSIM wallet ID (e.g., "WLLT-ABC123")
-  fromBsimId          String            // Bank identifier
+  fromWalletId        String            // ContractSim wallet ID
+  fromBsimId          String            // Bank identifier (e.g., "bsim")
+  fromUserId          String            // BSIM user ID for debit/escrow release
   fromEscrowId        String?           // BSIM escrow hold ID
 
   // Destination (winner)
-  toWalletId          String            // WSIM wallet ID
-  toBsimId            String            // Bank identifier
+  toWalletId          String            // ContractSim wallet ID
+  toBsimId            String            // Bank identifier (e.g., "bsim")
+  toUserId            String            // BSIM user ID for credit
 
   // Amount
   amount              Decimal           @db.Decimal(15, 2)

@@ -59,12 +59,14 @@ const createSettlementSchema = z.object({
   from: z.object({
     wallet_id: z.string().min(1),
     bank_id: z.string().min(1),
+    user_id: z.string().min(1),    // BSIM user ID (required for debit/escrow release)
     escrow_id: z.string().optional(),
   }),
 
   to: z.object({
     wallet_id: z.string().min(1),
     bank_id: z.string().min(1),
+    user_id: z.string().min(1),    // BSIM user ID (required for credit)
   }),
 
   amount: z.number().positive(),
@@ -132,9 +134,11 @@ settlementRoutes.post('/', requireContractSimAuth, async (req: Request, res: Res
         settlementType: body.settlement_type,
         fromWalletId: body.from.wallet_id,
         fromBsimId: body.from.bank_id,
+        fromUserId: body.from.user_id,
         fromEscrowId: body.from.escrow_id,
         toWalletId: body.to.wallet_id,
         toBsimId: body.to.bank_id,
+        toUserId: body.to.user_id,
         amount: new Decimal(body.amount),
         currency: body.currency,
         metadata: body.metadata || undefined,
@@ -256,11 +260,9 @@ async function processSettlement(settlementId: string): Promise<{
     data: { status: 'PROCESSING' },
   });
 
-  // Resolve wallet IDs to BSIM user IDs
-  // For now, we assume wallet_id format is "WLLT-{userId}" or just use it directly
-  // In production, WSIM would provide a lookup endpoint
-  const fromUserId = extractUserIdFromWalletId(settlement.fromWalletId);
-  const toUserId = extractUserIdFromWalletId(settlement.toWalletId);
+  // Use BSIM user IDs from the settlement record (provided by ContractSim)
+  const fromUserId = settlement.fromUserId;
+  const toUserId = settlement.toUserId;
 
   // Get metadata for description
   const metadata = settlement.metadata as {
@@ -566,15 +568,4 @@ async function markSettlementFailed(
     errorCode,
     statusMessage,
   };
-}
-
-/**
- * Extract user ID from wallet ID
- * Wallet ID format: "WLLT-{userId}" or just userId
- */
-function extractUserIdFromWalletId(walletId: string): string {
-  if (walletId.startsWith('WLLT-')) {
-    return walletId.substring(5);
-  }
-  return walletId;
 }
