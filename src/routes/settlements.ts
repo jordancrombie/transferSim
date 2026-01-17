@@ -315,8 +315,6 @@ async function processSettlement(settlementId: string): Promise<{
   // Step 1: Debit from source (loser) or release escrow
   // If fromEscrowId is set, funds are held in escrow and we use escrow release
   // Otherwise, do a regular debit from the user's account
-  let debitTransactionId: string | undefined;
-
   if (settlement.fromEscrowId) {
     // Escrow-based settlement: release escrow (deduct from loser), then credit winner
     // NOTE: Escrow release only deducts - we must separately call credit()
@@ -338,8 +336,6 @@ async function processSettlement(settlementId: string): Promise<{
       });
       return await markSettlementFailed(settlementId, 'ESCROW_RELEASE_FAILED', escrowResult.error || 'Escrow release failed', transfer.transferId);
     }
-
-    debitTransactionId = escrowResult.transactionId;
 
     // Update transfer with escrow release transaction ID
     await prisma.transfer.update({
@@ -405,8 +401,6 @@ async function processSettlement(settlementId: string): Promise<{
       });
       return await markSettlementFailed(settlementId, 'DEBIT_FAILED', debitResult.error || 'Debit failed', transfer.transferId);
     }
-
-    debitTransactionId = debitResult.transactionId;
 
     // Update transfer with debit transaction ID
     await prisma.transfer.update({
